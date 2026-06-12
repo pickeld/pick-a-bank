@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const { runScrape } = require('../scraper/runner');
+const { categorize } = require('../lib/categorize');
 
 let scrapeStatus = { running: false, lastRun: null, lastError: null };
 
@@ -10,7 +11,7 @@ router.get('/status', async (req, res) => {
   res.json({ ...scrapeStatus, lastScrape: rows[0]?.last_scrape || null });
 });
 
-// POST /api/scrape/trigger  (runs on-server — may be blocked by Cloudflare)
+// POST /api/scrape/trigger
 router.post('/trigger', async (req, res) => {
   if (scrapeStatus.running) return res.json({ ok: false, message: 'Already running' });
   const pool = req.app.locals.pool;
@@ -25,8 +26,7 @@ router.post('/trigger', async (req, res) => {
     .catch(e => { scrapeStatus.running = false; scrapeStatus.lastError = e.message; console.error('[scrape] error:', e.message); });
 });
 
-// POST /api/scrape/upload  — receive pre-scraped transactions from local client
-// Body: { source: 'isracard'|'discount', transactions: [...] }
+// POST /api/scrape/upload
 router.post('/upload', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
@@ -36,23 +36,33 @@ router.post('/upload', async (req, res) => {
       return res.status(400).json({ error: 'source and transactions[] required' });
     }
 
+    // Load DB category rules once
+    const { rows: dbRules } = await pool.query(
+      'SELECT category, pattern FROM category_rules ORDER BY priority DESC, id ASC'
+    );
+
     let inserted = 0;
     for (const t of transactions) {
       try {
-        const confirmation = t.confirmation || t.seqConfirmationNumber || t.confirmationNumber ||
-          `${t.date}-${t.business}-${t.amountILS}`;
-        await pool.query(
+        const amountILS = t.amountILS ?? t.ilsBillingAmount ?? t.originalAmount ?? t.amount ?? null;
+        const business = t.business || t.businessName || null;
+        const confirmation = t.confirmation ||
+          `${t.date || t.purchaseDate}-${business}-${amountILS}`;
+
+        const category = categorize(business, dbRules);
+
+        const { rowCount } = await pool.query(
           `INSERT INTO transactions
              (source, date, business, description, amount_ils, original_amount,
-              currency, currency_symbol, type, country, card, charge_type, confirmation, raw)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+              currency, currency_symbol, type, country, card, charge_type, confirmation, raw, category)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
            ON CONFLICT (source, confirmation, date, business, amount_ils) DO NOTHING`,
           [
             source,
             t.date || t.purchaseDate,
-            t.business || t.businessName,
+            business,
             t.description || t.transactionDescription || null,
-            t.amountILS ?? t.ilsBillingAmount ?? t.amount,
+            amountILS,
             t.originalAmount || null,
             t.currency || 'ILS',
             t.currencySymbol || '₪',
@@ -62,13 +72,15 @@ router.post('/upload', async (req, res) => {
             t.chargeType || (t.creditOrCharge === 1 ? 'חיוב' : 'זיכוי'),
             confirmation,
             JSON.stringify(t),
+            category,
           ]
         );
-        inserted++;
-      } catch (_) {}
+        if (rowCount > 0) inserted++;
+      } catch (err) {
+        console.error('[upload] row error:', err.message);
+      }
     }
 
-    // Update last_scrape timestamp
     await pool.query('UPDATE settings SET last_scrape = NOW() WHERE id = (SELECT id FROM settings LIMIT 1)');
 
     console.log(`[upload] ${source}: ${inserted}/${transactions.length} new transactions`);
