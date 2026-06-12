@@ -1,9 +1,18 @@
 FROM node:20-alpine
+
+# Chromium + deps for Playwright
+RUN apk add --no-cache \
+    chromium nss freetype harfbuzz ca-certificates \
+    ttf-freefont font-noto udev
+
+# Skip Playwright's own browser download — use system Chromium
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 WORKDIR /app
-# Install deps first (cached layer), then bind-mount overwrites src only
 COPY package*.json ./
 RUN npm install
-# nodemon for hot-reload
 RUN npm install -g nodemon
+
 EXPOSE 5101
 CMD ["nodemon", "--watch", ".", "--ext", "js,mjs,json", "--ignore", "node_modules", "index.js"]
