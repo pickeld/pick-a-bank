@@ -1,0 +1,80 @@
+# pick-a-bank — hot-reload dev stack
+# Volumes mount /opt/pick-a-bank/{frontend,backend} into containers
+# so every file save triggers HMR (Vite) or nodemon restart.
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: pick-a-bank-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pab_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-pick_a_bank}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pab}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - pab-net
+
+  # ── Backend  (Node 20 + nodemon hot-reload) ───────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: pick-a-bank-backend
+    restart: unless-stopped
+    ports:
+      - "5101:5101"
+    environment:
+      - NODE_ENV=development
+      - PORT=5101
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-pab}:${POSTGRES_PASSWORD:-pab_secret}@db:5432/${POSTGRES_DB:-pick_a_bank}
+      - CORS_ORIGIN=http://localhost:5100
+    volumes:
+      # Bind-mount source for nodemon hot-reload.
+      # node_modules stays inside the container image — NOT overwritten.
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - pab-net
+
+  # ── Frontend (Vite HMR) ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: pick-a-bank-frontend
+    restart: unless-stopped
+    ports:
+      - "5100:5100"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:5101
+    volumes:
+      # Bind-mount source for Vite HMR.
+      # node_modules stays inside the container image.
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - pab-net
+
+networks:
+  pab-net:
+    driver: bridge
+    name: pab-net
+
+volumes:
+  pg_data:
+    name: pick-a-bank-pg-data
