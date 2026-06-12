@@ -1,17 +1,29 @@
 const router = require('express').Router();
 
-// GET /api/settings
+// GET /api/settings  (masked passwords — for UI)
 router.get('/', async (req, res) => {
   try {
     const { rows } = await req.app.locals.pool.query('SELECT * FROM settings LIMIT 1');
     if (!rows.length) return res.json(null);
     const s = rows[0];
-    // mask passwords
     res.json({
       ...s,
       isracard_password: s.isracard_password ? '••••••••' : '',
       discount_password: s.discount_password ? '••••••••' : '',
     });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/settings/credentials  (real passwords — for local scraper)
+router.get('/credentials', async (req, res) => {
+  try {
+    const { rows } = await req.app.locals.pool.query(
+      'SELECT isracard_id, isracard_card6, isracard_password, discount_id, discount_password, discount_num FROM settings LIMIT 1'
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No settings found' });
+    res.json(rows[0]);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -30,7 +42,6 @@ router.post('/', async (req, res) => {
     const { rows: existing } = await pool.query('SELECT id FROM settings LIMIT 1');
 
     if (existing.length) {
-      // Only update password fields if they're not the masked placeholder
       const updates = {
         isracard_id, isracard_card6,
         discount_id, discount_num,
