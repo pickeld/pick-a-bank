@@ -45,28 +45,52 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/transactions/stats
+// Dates stored as DD/MM/YYYY — use LIKE '%/MM/YYYY' for month matching
 router.get('/stats', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // DD/MM/YYYY format month patterns
+    const mm  = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
     const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+    const mmLast  = String(lastMonthDate.getMonth() + 1).padStart(2, '0');
+    const yyyyLast = lastMonthDate.getFullYear();
+
+    const thisMonthPattern = `%/${mm}/${yyyy}`;
+    const lastMonthPattern = `%/${mmLast}/${yyyyLast}`;
 
     const [thisMonthRes, lastMonthRes, biggestRes, dailyRes] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(amount_ils),0) as total, COUNT(*) as count FROM transactions WHERE date LIKE $1 AND charge_type='חיוב'`, [`${thisMonth}%`]),
-      pool.query(`SELECT COALESCE(SUM(amount_ils),0) as total FROM transactions WHERE date LIKE $1 AND charge_type='חיוב'`, [`${lastMonth}%`]),
-      pool.query(`SELECT business, amount_ils FROM transactions WHERE charge_type='חיוב' ORDER BY amount_ils DESC LIMIT 1`),
+      pool.query(
+        `SELECT COALESCE(SUM(amount_ils),0) as total, COUNT(*) as count
+         FROM transactions WHERE date LIKE $1 AND charge_type='חיוב'`,
+        [thisMonthPattern]
+      ),
+      pool.query(
+        `SELECT COALESCE(SUM(amount_ils),0) as total
+         FROM transactions WHERE date LIKE $1 AND charge_type='חיוב'`,
+        [lastMonthPattern]
+      ),
+      pool.query(
+        `SELECT business, amount_ils FROM transactions WHERE charge_type='חיוב' ORDER BY amount_ils DESC LIMIT 1`
+      ),
+      // Daily totals for last 30 days — parse DD/MM/YYYY to date for comparison
       pool.query(`
         SELECT date, SUM(amount_ils) as total
         FROM transactions
-        WHERE date >= to_char(NOW() - INTERVAL '30 days', 'DD/MM/YYYY') AND charge_type='חיוב'
-        GROUP BY date ORDER BY date ASC
+        WHERE to_date(date, 'DD/MM/YYYY') >= NOW() - INTERVAL '30 days'
+          AND charge_type = 'חיוב'
+        GROUP BY date
+        ORDER BY to_date(date, 'DD/MM/YYYY') ASC
       `),
     ]);
 
     res.json({
-      thisMonth: { total: parseFloat(thisMonthRes.rows[0].total), count: parseInt(thisMonthRes.rows[0].count) },
+      thisMonth: {
+        total: parseFloat(thisMonthRes.rows[0].total),
+        count: parseInt(thisMonthRes.rows[0].count),
+      },
       lastMonth: { total: parseFloat(lastMonthRes.rows[0].total) },
       biggest: biggestRes.rows[0] || null,
       daily: dailyRes.rows,
