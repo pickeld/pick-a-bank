@@ -27,6 +27,22 @@ const SOURCE_BADGE = {
   discount: 'bg-orange-600/20 text-orange-400 border-orange-600/30',
 }
 
+// Isracard semantics: זיכוי = purchase (spend), חיוב = billing event
+// Discount semantics: חיוב = debit (spend), זיכוי = credit (income/refund)
+function isDebit(txn) {
+  if (txn.source === 'isracard') return txn.charge_type === 'זיכוי'
+  return txn.charge_type === 'חיוב'
+}
+
+function CardLabel({ source, card }) {
+  const sourceName = source === 'isracard' ? 'ישראכרט' : 'דיסקונט'
+  // Show last 4 digits only if non-empty and looks like a card suffix
+  const suffix = card && String(card).trim().length > 0
+    ? ` ****${String(card).trim().slice(-4)}`
+    : ''
+  return <>{sourceName}{suffix}</>
+}
+
 function CategoryPill({ category, editable, txnId, onChanged }) {
   const meta = CATEGORY_META[category] || CATEGORY_META.other
   const [open, setOpen] = useState(false)
@@ -102,9 +118,9 @@ export default function TransactionRow({ txn, grid = false, onCategoryChange }) 
     onCategoryChange?.(id, cat)
   }
 
-  const isCredit = txn.charge_type === 'זיכוי'
-  const amountColor = isCredit ? 'text-green-400' : 'text-white'
-  const amountPrefix = isCredit ? '+' : '-'
+  const debit = isDebit(txn)
+  const amountColor = debit ? 'text-red-400' : 'text-green-400'
+  const amountPrefix = debit ? '-' : '+'
   const amountFmt = `${amountPrefix}₪${Number(txn.amount_ils || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`
 
   if (grid) {
@@ -123,7 +139,7 @@ export default function TransactionRow({ txn, grid = false, onCategoryChange }) 
         <span className={`col-span-2 font-semibold tabular-nums ${amountColor}`}>{amountFmt}</span>
         <span className="col-span-2">
           <span className={`text-xs px-2 py-0.5 rounded-full border ${SOURCE_BADGE[txn.source] || 'bg-gray-700 text-gray-400 border-gray-600'}`}>
-            {txn.source === 'isracard' ? 'ישראכרט' : 'דיסקונט'}
+            <CardLabel source={txn.source} card={txn.card} />
           </span>
         </span>
         <span className="col-span-1 text-gray-500 text-xs truncate">{txn.card}</span>
@@ -143,7 +159,7 @@ export default function TransactionRow({ txn, grid = false, onCategoryChange }) 
         txnId={txn.id}
       />
       <span className={`text-xs px-2 py-0.5 rounded-full border ${SOURCE_BADGE[txn.source] || 'bg-gray-700 text-gray-400 border-gray-600'}`}>
-        {txn.source === 'isracard' ? 'ישראכרט' : 'דיסקונט'}
+        <CardLabel source={txn.source} card={txn.card} />
       </span>
       <span className={`text-sm font-semibold tabular-nums ${amountColor}`}>{amountFmt}</span>
     </div>
