@@ -5,6 +5,18 @@ async function upsertTransactions(pool, source, txns) {
   let inserted = 0;
   for (const t of txns) {
     try {
+      // amount_ils: the scraper already normalises to t.amountILS
+      const amountIls = t.amountILS ?? t.ilsBillingAmount ?? t.amount;
+
+      // confirmation: use whatever the scraper provides; fall back to a
+      // deterministic key built from fields that are always present.
+      // NEVER include undefined in the fallback string.
+      const confirmation =
+        t.confirmation ||
+        t.seqConfirmationNumber ||
+        t.confirmationNumber ||
+        `${t.date || t.purchaseDate}-${(t.business || t.businessName || '').trim()}-${amountIls}`;
+
       await pool.query(
         `INSERT INTO transactions
            (source, date, business, description, amount_ils, original_amount,
@@ -16,7 +28,7 @@ async function upsertTransactions(pool, source, txns) {
           t.date || t.purchaseDate,
           t.business || t.businessName,
           t.description || t.transactionDescription || null,
-          t.amountILS ?? t.ilsBillingAmount ?? t.amount,
+          amountIls,
           t.originalAmount || null,
           t.currency || 'ILS',
           t.currencySymbol || '₪',
@@ -24,7 +36,7 @@ async function upsertTransactions(pool, source, txns) {
           t.country || null,
           t.card || t.cardSuffix || null,
           t.chargeType || (t.creditOrCharge === 1 ? 'חיוב' : 'זיכוי'),
-          t.confirmation || t.seqConfirmationNumber || t.confirmationNumber || `${t.date}-${t.business}-${t.amountILS}`,
+          confirmation,
           JSON.stringify(t),
         ]
       );
@@ -72,7 +84,6 @@ async function runScrape(pool, settings) {
     }
   }
 
-  // Update last_scrape timestamp
   await pool.query('UPDATE settings SET last_scrape = NOW() WHERE id = (SELECT id FROM settings LIMIT 1)');
   console.log('[scraper] done:', results);
   return results;

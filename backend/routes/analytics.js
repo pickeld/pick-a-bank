@@ -6,11 +6,6 @@ const router = require('express').Router();
 // Discount semantics:
 //   charge_type = 'חיוב'   →  bank account debits (outflows)
 //   charge_type = 'זיכוי'  →  bank account credits (salary, refunds)
-//
-// IMPORTANT: The Isracard scraper stores every transaction TWICE
-// (exact duplicate rows with same date+business+amount_ils).
-// We deduplicate by keeping only the first occurrence of each (date, business, amount_ils) tuple
-// before doing any analysis.
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -30,30 +25,16 @@ function fmt(n) {
   return Math.round(parseFloat(n) || 0);
 }
 
-// Deduplicate rows with identical (source, date, business, amount_ils) — scraper artifact
-function dedupe(rows) {
-  const seen = new Set();
-  return rows.filter(t => {
-    const key = `${t.source}|${t.date}|${t.business?.trim()}|${t.amount_ils}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
 // ── GET /api/analytics ────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
 
-    const { rows: rawAll } = await pool.query(
+    const { rows: all } = await pool.query(
       `SELECT id, source, date, business, amount_ils, charge_type, category, currency, country, scraped_at
        FROM transactions
        ORDER BY to_date(date,'DD/MM/YYYY') ASC, id ASC`
     );
-
-    // Deduplicate scraper doubles — keep first occurrence (lowest id)
-    const all = dedupe(rawAll);
 
     const now = new Date();
     const mm   = String(now.getMonth() + 1).padStart(2, '0');
@@ -267,7 +248,7 @@ router.get('/', async (req, res) => {
 
     // 6d. International transactions (country field non-empty)
     // Note: Isracard currency is always Hebrew "שקל חדש" regardless of country — country is the signal
-    const international = dedupe(rawAll).filter(t =>
+    const international = all.filter(t =>
       t.source === 'isracard' &&
       t.country && t.country.trim() !== ''
     );
@@ -339,7 +320,6 @@ router.get('/', async (req, res) => {
       anomalies,
       meta: {
         totalTransactions: all.length,
-        rawTransactions: rawAll.length,
         computedAt: new Date().toISOString(),
       },
     });
