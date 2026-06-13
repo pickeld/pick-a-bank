@@ -41,10 +41,10 @@ async function scrapeDiscount({ id, password, num }) {
     companyId:   CompanyTypes.discount,
     startDate,
     showBrowser: false,
-    browser: {
-      executablePath: CHROMIUM_PATH,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    },
+    executablePath: CHROMIUM_PATH,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    timeout: 60000,
+    defaultTimeout: 60000,
     // Pass saved cookies so the scraper can reuse an existing session
     ...(savedCookies ? { cookies: savedCookies } : {}),
   });
