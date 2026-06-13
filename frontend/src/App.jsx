@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import Transactions from './pages/Transactions'
 import Analytics from './pages/Analytics'
+import Import from './pages/Import'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/import" element={<Import />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

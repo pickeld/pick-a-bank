@@ -4,39 +4,34 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const cron = require('node-cron');
 
-const settingsRouter = require('./routes/settings');
+const settingsRouter     = require('./routes/settings');
 const transactionsRouter = require('./routes/transactions');
-const scrapeRouter = require('./routes/scrape');
-const analyticsRouter = require('./routes/analytics');
+const scrapeRouter       = require('./routes/scrape');
+const analyticsRouter    = require('./routes/analytics');
+const importRouter       = require('./routes/import');
 const { runScrape } = require('./scraper/runner');
-const { initDb } = require('./db/init');
+const { initDb }    = require('./db/init');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 5101;
 
-// ── DB pool (shared) ──────────────────────────────────────────────────────
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 app.locals.pool = pool;
 
-// ── Middleware ────────────────────────────────────────────────────────────
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
 
-// ── Routes ────────────────────────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ ok: true }));
-app.use('/api/settings', settingsRouter);
+app.use('/api/settings',     settingsRouter);
 app.use('/api/transactions', transactionsRouter);
-app.use('/api/scrape', scrapeRouter);
-app.use('/api/analytics', analyticsRouter);
+app.use('/api/scrape',       scrapeRouter);
+app.use('/api/analytics',    analyticsRouter);
+app.use('/api/import',       importRouter);
 
-// ── Boot ──────────────────────────────────────────────────────────────────
 (async () => {
   await initDb(pool);
-  app.listen(PORT, '0.0.0.0', () =>
-    console.log(`[backend] listening on :${PORT}`)
-  );
+  app.listen(PORT, '0.0.0.0', () => console.log(`[backend] listening on :${PORT}`));
 
-  // Schedule scrape job based on saved settings
   cron.schedule('0 * * * *', async () => {
     const { rows } = await pool.query('SELECT * FROM settings LIMIT 1');
     if (!rows.length) return;

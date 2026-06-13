@@ -8,13 +8,15 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
     "cors": "^2.8.5",
-    "pg": "^8.11.5",
-    "node-cron": "^3.0.3",
-    "playwright": "^1.44.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "israeli-bank-scrapers": "^4.4.0",
-    "dotenv": "^16.4.5"
+    "multer": "^2.1.1",
+    "node-cron": "^3.0.3",
+    "pg": "^8.11.5",
+    "playwright": "^1.44.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

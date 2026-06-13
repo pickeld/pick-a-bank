@@ -1,17 +1,17 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, Settings, Landmark, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, List, Settings, Landmark, BarChart2, Upload } from 'lucide-react'
 
 const links = [
-  { to: '/',             icon: LayoutDashboard, label: 'דשבורד'      },
-  { to: '/transactions', icon: List,             label: 'פעולות'      },
-  { to: '/analytics',    icon: BarChart2,        label: 'ניתוח'       },
-  { to: '/settings',     icon: Settings,         label: 'הגדרות'      },
+  { to: '/',             icon: LayoutDashboard, label: 'דשבורד'  },
+  { to: '/transactions', icon: List,             label: 'פעולות'  },
+  { to: '/analytics',    icon: BarChart2,        label: 'ניתוח'   },
+  { to: '/import',       icon: Upload,           label: 'ייבוא'   },
+  { to: '/settings',     icon: Settings,         label: 'הגדרות'  },
 ]
 
 export default function Sidebar() {
   return (
     <aside className="w-56 bg-gray-900 border-l border-gray-800 flex flex-col">
-      {/* Logo */}
       <div className="px-5 py-6 border-b border-gray-800">
         <div className="flex items-center gap-2">
           <Landmark size={22} className="text-blue-400" />
@@ -20,7 +20,6 @@ export default function Sidebar() {
         <p className="text-xs text-gray-500 mt-1">מעקב פיננסי אישי</p>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {links.map(({ to, icon: Icon, label }) => (
           <NavLink
@@ -40,7 +39,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
       <div className="px-5 py-4 border-t border-gray-800 text-xs text-gray-600">
         v1.0 · pick-a-bank
       </div>
