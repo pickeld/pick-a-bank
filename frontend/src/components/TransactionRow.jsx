@@ -30,7 +30,7 @@ const SOURCE_BADGE = {
 // Isracard: זיכוי = purchase (spend), חיוב = billing event
 // Discount: חיוב = debit (spend),     זיכוי = credit (income/refund)
 function isDebit(txn) {
-  if (txn.source === 'isracard') return txn.charge_type === 'זיכוי'
+  if (txn.source === 'isracard') return true
   return txn.charge_type === 'חיוב'
 }
 
