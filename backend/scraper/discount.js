@@ -12,7 +12,7 @@ const fs   = require('fs');
 const path = require('path');
 
 const COOKIES_PATH  = path.join(__dirname, '.discount-cookies.json');
-const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser';
+const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/app/node_modules/puppeteer/.local-chromium/linux-843427/chrome-linux/chrome';
 
 function loadCookies() {
   try {
@@ -56,25 +56,9 @@ async function scrapeDiscount({ id, password, num }) {
 
   const result = await scraper.scrape({ id, password, num });
 
-  // Save cookies after scrape — israeli-bank-scrapers exposes browser via scraper.browser
-  // which is a Playwright Browser; contexts() returns the list of BrowserContexts.
-  if (result.success) {
-    try {
-      const browser = scraper.browser;
-      if (browser) {
-        // Playwright Browser.contexts() (not pages()) returns BrowserContext[]
-        const contexts = browser.contexts ? browser.contexts() : [];
-        const ctx = contexts[0];
-        if (ctx) {
-          const cookies = await ctx.cookies();
-          if (cookies?.length) saveCookies(cookies);
-        }
-      }
-    } catch (e) {
-      // Non-fatal — worst case we just re-login next time
-      console.warn('[discount] could not save cookies:', e.message);
-    }
-  }
+  // Note: israeli-bank-scrapers does not expose the browser context in a
+  // reliable way — skip cookie extraction to avoid crashes.
+  // We rely on re-login when the session expires.
 
   if (!result.success) {
     throw new Error(result.errorMessage || result.errorType || 'Discount scrape failed');

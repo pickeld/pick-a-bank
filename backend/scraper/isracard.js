@@ -82,30 +82,43 @@ async function login(page, { id, card6Digits, password }) {
   });
   await page.waitForTimeout(3000);
 
-  // Fill ID number
-  await page.fill('#otpLoginId_ID', id);
-  // Fill last 4 digits (field accepts 4 digits despite being called "card6Digits" in settings)
-  const last4 = String(card6Digits).slice(-4);
-  await page.fill('#cardnum', last4);
-  // Fill password
-  await page.fill('#otpLoginPwd', password);
+  // The page shows SMS login by default. Click the toggle link to flip to password form.
+  // Selector: a[ng-click="vm.rotateView(true)"] — text: "או כניסה עם סיסמה קבועה"
+  await page.click('a[ng-click="vm.rotateView(true)"]');
+  await page.waitForTimeout(1000);
 
-  // Submit
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'load', timeout: 30000 }).catch(() => {}),
-    page.click('button:has-text("כניסה לחשבון שלי")').catch(() =>
-      page.keyboard.press('Enter')
-    ),
-  ]);
+  // Now fill the password form (#otpLobbyFormPassword).
+  // Use type() not fill() — Angular needs input events to mark the form valid.
+  // Isracard requires the last 6 digits of the card
+  const last6 = String(card6Digits);
+  await page.click('#otpLoginId_ID');
+  await page.type('#otpLoginId_ID', id, { delay: 60 });
+  await page.click('#cardnum');
+  await page.type('#cardnum', last6, { delay: 60 });
+  await page.click('#otpLoginPwd');
+  await page.type('#otpLoginPwd', password, { delay: 60 });
+  await page.waitForTimeout(800);
 
-  await page.waitForTimeout(3000);
+  // Submit — button ng-click="vm.ResendNewLogin('password','login')"
+  await page.click('button[ng-click*="ResendNewLogin"]');
 
-  const url = page.url();
-  const title = await page.title().catch(() => '');
-  console.log('[isracard] post-login url:', url, 'title:', title.slice(0, 60));
-
-  if (url.includes('/Login') || title.includes('כניסה')) {
-    throw new Error('Login failed — still on login page after submit');
+  // Wait for URL to change away from login page (up to 30s)
+  // Do NOT use waitForNavigation — it fires on the login page itself
+  const loginUrl = 'digital.isracard.co.il/personalarea/Login';
+  let redirected = false;
+  for (let i = 0; i < 30; i++) {
+    await page.waitForTimeout(1000);
+    const url = page.url();
+    if (!url.includes(loginUrl)) {
+      redirected = true;
+      console.log('[isracard] login success, url:', url);
+      break;
+    }
+  }
+  if (!redirected) {
+    const title = await page.title().catch(() => '');
+    console.log('[isracard] post-login url:', page.url(), 'title:', title.slice(0,60));
+    throw new Error('Login failed — still on login page after 30s');
   }
 }
 
