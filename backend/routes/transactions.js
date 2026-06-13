@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     params.push(parseInt(limit), offset);
     const dataRes = await pool.query(
-      `SELECT id, source, date, business, description, amount_ils, original_amount,
+      `SELECT id, source, date, business, description, amount_ils, ils_amount, foreign_amount, foreign_currency,
               currency, currency_symbol, type, country, card, charge_type, category, category_locked, scraped_at
        FROM transactions ${where}
        ORDER BY to_date(date,'DD/MM/YYYY') DESC, scraped_at DESC

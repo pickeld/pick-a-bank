@@ -27,20 +27,31 @@ const SOURCE_BADGE = {
   discount: 'bg-orange-600/20 text-orange-400 border-orange-600/30',
 }
 
-// Isracard semantics: זיכוי = purchase (spend), חיוב = billing event
-// Discount semantics: חיוב = debit (spend), זיכוי = credit (income/refund)
+// Isracard: זיכוי = purchase (spend), חיוב = billing event
+// Discount: חיוב = debit (spend),     זיכוי = credit (income/refund)
 function isDebit(txn) {
   if (txn.source === 'isracard') return txn.charge_type === 'זיכוי'
   return txn.charge_type === 'חיוב'
 }
 
 function CardLabel({ source, card }) {
-  const sourceName = source === 'isracard' ? 'ישראכרט' : 'דיסקונט'
-  // Show last 4 digits only if non-empty and looks like a card suffix
+  const name = source === 'isracard' ? 'ישראכרט' : 'דיסקונט'
   const suffix = card && String(card).trim().length > 0
     ? ` ****${String(card).trim().slice(-4)}`
     : ''
-  return <>{sourceName}{suffix}</>
+  return <>{name}{suffix}</>
+}
+
+// Shows the original foreign-currency amount as a small grey badge
+// e.g.  (6,177 RSD)  or  (65 EUR)
+function ForeignBadge({ amount, currency }) {
+  if (!amount || !currency) return null
+  const formatted = Number(amount).toLocaleString('he-IL', { maximumFractionDigits: 2 })
+  return (
+    <span className="text-[11px] text-gray-500 tabular-nums whitespace-nowrap">
+      ({formatted} {currency})
+    </span>
+  )
 }
 
 function CategoryPill({ category, editable, txnId, onChanged }) {
@@ -118,14 +129,16 @@ export default function TransactionRow({ txn, grid = false, onCategoryChange }) 
     onCategoryChange?.(id, cat)
   }
 
-  const debit = isDebit(txn)
+  const debit       = isDebit(txn)
   const amountColor = debit ? 'text-red-400' : 'text-green-400'
   const amountPrefix = debit ? '-' : '+'
-  const amountFmt = `${amountPrefix}₪${Number(txn.amount_ils || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`
+  // Use ils_amount if available (populated after fix), fallback to amount_ils
+  const ilsValue = txn.ils_amount ?? txn.amount_ils ?? 0
+  const amountFmt = `${amountPrefix}₪${Number(ilsValue).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`
 
   if (grid) {
     return (
-      <div className="grid grid-cols-12 px-4 py-3 text-sm hover:bg-gray-700/30 transition-colors items-center">
+      <div className="grid grid-cols-12 px-4 py-3 text-sm hover:bg-gray-700/30 transition-colors items-center gap-y-0.5">
         <span className="col-span-2 text-gray-400 text-xs">{txn.date}</span>
         <span className="col-span-3 text-white truncate pr-2">{txn.business}</span>
         <span className="col-span-2">
@@ -136,7 +149,11 @@ export default function TransactionRow({ txn, grid = false, onCategoryChange }) 
             onChanged={handleChanged}
           />
         </span>
-        <span className={`col-span-2 font-semibold tabular-nums ${amountColor}`}>{amountFmt}</span>
+        {/* Amount column: ILS on top, foreign below if present */}
+        <span className="col-span-2 flex flex-col items-start gap-0.5">
+          <span className={`font-semibold tabular-nums ${amountColor}`}>{amountFmt}</span>
+          <ForeignBadge amount={txn.foreign_amount} currency={txn.foreign_currency} />
+        </span>
         <span className="col-span-2">
           <span className={`text-xs px-2 py-0.5 rounded-full border ${SOURCE_BADGE[txn.source] || 'bg-gray-700 text-gray-400 border-gray-600'}`}>
             <CardLabel source={txn.source} card={txn.card} />
@@ -147,6 +164,7 @@ export default function TransactionRow({ txn, grid = false, onCategoryChange }) 
     )
   }
 
+  // Non-grid (dashboard recent transactions)
   return (
     <div className="flex items-center gap-3 px-5 py-3 hover:bg-gray-700/30 transition-colors">
       <div className="flex-1 min-w-0">
@@ -161,7 +179,10 @@ export default function TransactionRow({ txn, grid = false, onCategoryChange }) 
       <span className={`text-xs px-2 py-0.5 rounded-full border ${SOURCE_BADGE[txn.source] || 'bg-gray-700 text-gray-400 border-gray-600'}`}>
         <CardLabel source={txn.source} card={txn.card} />
       </span>
-      <span className={`text-sm font-semibold tabular-nums ${amountColor}`}>{amountFmt}</span>
+      <div className="flex flex-col items-end gap-0.5">
+        <span className={`text-sm font-semibold tabular-nums ${amountColor}`}>{amountFmt}</span>
+        <ForeignBadge amount={txn.foreign_amount} currency={txn.foreign_currency} />
+      </div>
     </div>
   )
 }

@@ -14,11 +14,8 @@ function createClient() {
     }
   }
 
-  function cookieHeader(url) {
-    const u = new URL(url);
-    return Object.entries(jar)
-      .map(([k, v]) => `${k}=${v}`)
-      .join('; ');
+  function cookieHeader() {
+    return Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ');
   }
 
   function request(method, url, body, extraHeaders = {}) {
@@ -35,7 +32,7 @@ function createClient() {
           'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8',
           'Origin': `https://${u.hostname}`,
           'Referer': `https://${u.hostname}/`,
-          'Cookie': cookieHeader(url),
+          'Cookie': cookieHeader(),
           ...(data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {}),
           ...extraHeaders,
         },
@@ -48,7 +45,7 @@ function createClient() {
         res.on('end', () => {
           let json = null;
           try { json = JSON.parse(raw); } catch {}
-          resolve({ status: res.status, headers: res.headers, text: raw, json });
+          resolve({ status: res.statusCode, headers: res.headers, text: raw, json });
         });
       });
       req.on('error', reject);
@@ -61,7 +58,6 @@ function createClient() {
   return { request, jar };
 }
 
-// ── Helper to get the Anti-Forgery token from the login page HTML ─────────────
 function extractAntiForgeryToken(html) {
   const m = html.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/);
   return m ? m[1] : null;
@@ -71,12 +67,10 @@ function extractAntiForgeryToken(html) {
 async function scrapeIsracard({ id, card6Digits, password }) {
   const client = createClient();
 
-  // 1. Load login page — get session cookies + anti-forgery token
   console.log('[isracard] loading login page...');
   const loginPage = await client.request('GET', 'https://digital.isracard.co.il/personalarea/Login/', null);
   const token = extractAntiForgeryToken(loginPage.text);
 
-  // 2. Validate credentials (step 1 of login flow)
   console.log('[isracard] validating credentials...');
   const validate = await client.request('POST',
     'https://digital.isracard.co.il/services/ProxyRequestHandler.ashx?reqName=ValidateIdDataNoReg',
@@ -88,19 +82,16 @@ async function scrapeIsracard({ id, card6Digits, password }) {
     throw new Error(`ValidateIdDataNoReg failed: ${JSON.stringify(validateData)}`);
   }
 
-  // 3. Check registration
   await client.request('POST',
     'https://digital.isracard.co.il/services/ProxyRequestHandler.ashx?reqName=IsRegisterNoReg',
     { id, idType: '1' }
   );
 
-  // 4. Report user data (required before performLogonI)
   await client.request('POST',
     'https://digital.isracard.co.il/services/ProxyRequestHandler.ashx?reqName=ReportUserData',
     { customerId: id, customerIdType: '1', customerIdCountry: '212', loginTypeId: 1, deviceLanguage: 'he-IL' }
   ).catch(() => {});
 
-  // 5. Perform login
   console.log('[isracard] logging in...');
   const loginRes = await client.request('POST',
     'https://digital.isracard.co.il/services/ProxyRequestHandler.ashx?reqName=performLogonI',
@@ -112,13 +103,11 @@ async function scrapeIsracard({ id, card6Digits, password }) {
   }
   console.log(`[isracard] logged in as ${loginData.firstName?.trim()}`);
 
-  // 6. Navigate to web.isracard.co.il to get its session cookies
   console.log('[isracard] establishing web session...');
   await client.request('GET', 'https://web.isracard.co.il/Transactions', null,
     { 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' }
   );
 
-  // 7. Get card list
   console.log('[isracard] fetching card list...');
   const cardListRes = await client.request('POST',
     'https://web.isracard.co.il/ocp/transactions/DigitalV3.Transactions/GetCardList',
@@ -127,7 +116,6 @@ async function scrapeIsracard({ id, card6Digits, password }) {
   const cardsList = cardListRes.json?.data?.cardsList || [];
   console.log(`[isracard] ${cardsList.length} cards`);
 
-  // 8. Fetch transactions for each card × each billing month
   function pastBillingMonths(n) {
     const months = [];
     for (let i = 0; i <= n; i++) {
@@ -141,7 +129,10 @@ async function scrapeIsracard({ id, card6Digits, password }) {
 
   const months = pastBillingMonths(3);
   const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const allTxns = [];
+
+  // Collect regular txns and abroad vouchers separately so we know which is which
+  const regularTxns  = [];
+  const abroadTxns   = [];
 
   for (const card of cardsList) {
     const { cardSuffix, companyCode, cardStatus, isPartner } = card;
@@ -158,13 +149,20 @@ async function scrapeIsracard({ id, card6Digits, password }) {
         }
       );
       const d = res.json?.data || {};
-      allTxns.push(
+      regularTxns.push(
         ...(d.approvals?.approvedTransactions || []),
-        ...(d.approvals?.monthlyTransactions  || []),
-        ...(d.israelAbroadVouchers?.vouchers?.israelAbroadVouchersList || [])
+        ...(d.approvals?.monthlyTransactions  || [])
       );
+      // Tag abroad vouchers so we can handle them separately
+      const abroad = d.israelAbroadVouchers?.vouchers?.israelAbroadVouchersList || [];
+      if (abroad.length > 0) {
+        console.log(`[isracard] abroad voucher keys: ${Object.keys(abroad[0]).join(', ')}`);
+      }
+      abroadTxns.push(...abroad.map(t => ({ ...t, _isAbroad: true })));
     }
   }
+
+  const allTxns = [...regularTxns, ...abroadTxns];
 
   function parseILDate(s) {
     if (!s) return new Date(0);
@@ -172,28 +170,59 @@ async function scrapeIsracard({ id, card6Digits, password }) {
     return new Date(`${y}-${m}-${d}`);
   }
 
+  // ILS currency synonyms used by Isracard
+  const ILS_NAMES = new Set(['שקל חדש', 'ש"ח', 'NIS', 'ILS', '₪']);
+
   const seen = new Set();
   return allTxns
     .filter(t => {
-      const key = `${t.seqConfirmationNumber||''}_${t.businessName}_${t.purchaseDate}_${t.ilsBillingAmount}_${t.cardSuffix}`;
+      const key = `${t.seqConfirmationNumber || ''}_${t.businessName}_${t.purchaseDate}_${t.ilsBillingAmount}_${t.cardSuffix}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return parseILDate(t.purchaseDate) >= startDate;
     })
-    .map(t => ({
-      date: t.purchaseDate,
-      business: t.businessName,
-      description: t.transactionDescription || null,
-      amountILS: t.ilsBillingAmount,
-      originalAmount: t.originalAmount !== t.ilsBillingAmount ? t.originalAmount : null,
-      currency: t.currencyName || 'שקל חדש',
-      currencySymbol: t.currencySimbol || '₪',
-      type: t.tranzacCodeDescription || null,
-      country: t.countryCode && t.countryCode !== 'ISR' ? t.country : null,
-      card: t.cardSuffix,
-      chargeType: t.creditOrCharge === 1 ? 'חיוב' : 'זיכוי',
-      confirmation: t.seqConfirmationNumber || t.confirmationNumber || null,
-    }));
+    .map(t => {
+      const isAbroad = !!t._isAbroad;
+
+      // For regular transactions:
+      //   ilsBillingAmount  = ILS billed amount  ✓
+      //   originalAmount    = foreign currency amount (null if ILS)
+      //   currencyName      = foreign currency name
+      //
+      // For abroad vouchers (israelAbroadVouchersList):
+      //   The field mapping is different — we log the keys above so we can
+      //   verify after the first successful scrape.
+      //   Best-effort: try all known field name variants.
+      const rawIls = t.ilsBillingAmount ?? t.ilsAmount ?? t.paymentSum ?? t.chargedAmount;
+      const rawForeign = t.originalAmount ?? t.dealSum ?? t.foreignAmount ?? t.voucherAmount;
+      const rawCurrency = t.currencyName ?? t.foreignCurrencyName ?? t.currencyId;
+
+      // Determine which is ILS and which is foreign
+      const currencyIsIls = !rawCurrency || ILS_NAMES.has(rawCurrency);
+      const ilsAmount   = rawIls;
+      const foreignAmt  = !currencyIsIls && rawForeign !== rawIls ? rawForeign : null;
+      const foreignCurr = !currencyIsIls ? rawCurrency : null;
+
+      return {
+        date:            t.purchaseDate,
+        business:        t.businessName,
+        description:     t.transactionDescription || null,
+        // amount_ils: the ILS-billed amount (what actually leaves your account)
+        amountILS:       ilsAmount,
+        // foreign amount + currency: the original charge in local currency
+        foreignAmount:   foreignAmt,
+        foreignCurrency: foreignCurr,
+        currency:        rawCurrency || 'שקל חדש',
+        currencySymbol:  t.currencySimbol || '₪',
+        type:            t.tranzacCodeDescription || null,
+        country:         t.countryCode && t.countryCode !== 'ISR' ? t.country : null,
+        card:            t.cardSuffix,
+        chargeType:      t.creditOrCharge === 1 ? 'חיוב' : 'זיכוי',
+        confirmation:    t.seqConfirmationNumber || t.confirmationNumber || null,
+        // Preserve the full raw API object so we never lose field names again
+        _raw:            t,
+      };
+    });
 }
 
 module.exports = { scrapeIsracard };

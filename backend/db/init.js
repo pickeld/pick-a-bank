@@ -21,7 +21,9 @@ async function initDb(pool) {
       business TEXT,
       description TEXT,
       amount_ils NUMERIC,
-      original_amount NUMERIC,
+      ils_amount NUMERIC,
+      foreign_amount NUMERIC,
+      foreign_currency TEXT,
       currency TEXT DEFAULT 'ILS',
       currency_symbol TEXT DEFAULT '₪',
       type TEXT,
@@ -33,6 +35,11 @@ async function initDb(pool) {
       scraped_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(source, confirmation, date, business, amount_ils)
     );
+
+    -- Add new columns to existing tables if missing (idempotent)
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS ils_amount NUMERIC;
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS foreign_amount NUMERIC;
+    ALTER TABLE transactions ADD COLUMN IF NOT EXISTS foreign_currency TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC);
     CREATE INDEX IF NOT EXISTS idx_transactions_source ON transactions(source);

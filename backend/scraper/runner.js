@@ -5,12 +5,8 @@ async function upsertTransactions(pool, source, txns) {
   let inserted = 0;
   for (const t of txns) {
     try {
-      // amount_ils: the scraper already normalises to t.amountILS
       const amountIls = t.amountILS ?? t.ilsBillingAmount ?? t.amount;
 
-      // confirmation: use whatever the scraper provides; fall back to a
-      // deterministic key built from fields that are always present.
-      // NEVER include undefined in the fallback string.
       const confirmation =
         t.confirmation ||
         t.seqConfirmationNumber ||
@@ -19,9 +15,10 @@ async function upsertTransactions(pool, source, txns) {
 
       await pool.query(
         `INSERT INTO transactions
-           (source, date, business, description, amount_ils, original_amount,
+           (source, date, business, description, amount_ils, ils_amount,
+            foreign_amount, foreign_currency,
             currency, currency_symbol, type, country, card, charge_type, confirmation, raw)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          ON CONFLICT (source, confirmation, date, business, amount_ils) DO NOTHING`,
         [
           source,
@@ -29,7 +26,9 @@ async function upsertTransactions(pool, source, txns) {
           t.business || t.businessName,
           t.description || t.transactionDescription || null,
           amountIls,
-          t.originalAmount || null,
+          amountIls,                          // ils_amount = same as amount_ils (ILS billed)
+          t.foreignAmount ?? null,            // foreign currency amount
+          t.foreignCurrency ?? null,          // e.g. 'RSD', 'EUR', 'USD'
           t.currency || 'ILS',
           t.currencySymbol || '₪',
           t.type || t.tranzacCodeDescription || null,
@@ -37,7 +36,7 @@ async function upsertTransactions(pool, source, txns) {
           t.card || t.cardSuffix || null,
           t.chargeType || (t.creditOrCharge === 1 ? 'חיוב' : 'זיכוי'),
           confirmation,
-          JSON.stringify(t),
+          JSON.stringify(t._raw || t),        // store the original raw API object
         ]
       );
       inserted++;
@@ -50,7 +49,6 @@ async function runScrape(pool, settings) {
   console.log('[scraper] starting...');
   const results = { isracard: 0, discount: 0, errors: [] };
 
-  // ── Isracard ──────────────────────────────────────────────────────────────
   if (settings.isracard_id && settings.isracard_card6 && settings.isracard_password) {
     try {
       console.log('[scraper] scraping Isracard...');
@@ -67,7 +65,6 @@ async function runScrape(pool, settings) {
     }
   }
 
-  // ── Discount ──────────────────────────────────────────────────────────────
   if (settings.discount_id && settings.discount_password) {
     try {
       console.log('[scraper] scraping Discount...');
