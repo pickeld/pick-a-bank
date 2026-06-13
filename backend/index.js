@@ -7,6 +7,7 @@ const cron = require('node-cron');
 const settingsRouter = require('./routes/settings');
 const transactionsRouter = require('./routes/transactions');
 const scrapeRouter = require('./routes/scrape');
+const analyticsRouter = require('./routes/analytics');
 const { runScrape } = require('./scraper/runner');
 const { initDb } = require('./db/init');
 
@@ -26,6 +27,7 @@ app.get('/health', (_, res) => res.json({ ok: true }));
 app.use('/api/settings', settingsRouter);
 app.use('/api/transactions', transactionsRouter);
 app.use('/api/scrape', scrapeRouter);
+app.use('/api/analytics', analyticsRouter);
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 (async () => {

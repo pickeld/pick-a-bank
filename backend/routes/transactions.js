@@ -1,6 +1,14 @@
 const router = require('express').Router();
 const { categorize } = require('../lib/categorize');
 
+// Isracard semantics:
+//   charge_type = 'זיכוי'  →  individual purchase transactions (the actual spend)
+//   charge_type = 'חיוב'   →  billing events (monthly bill sent to bank) — NOT individual purchases
+// Discount semantics:
+//   charge_type = 'חיוב'   →  bank account debits (outflows)
+//   charge_type = 'זיכוי'  →  bank account credits (salary, refunds)
+const ISRACARD_SPEND = `source='isracard' AND charge_type='זיכוי'`;
+
 // GET /api/transactions?source=all&search=&category=&from=&to=&page=1&limit=50
 router.get('/', async (req, res) => {
   try {
@@ -71,11 +79,11 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// GET /api/transactions/categories  — list all categories with spend totals for current month
+// GET /api/transactions/categories?month=MM/YYYY
 router.get('/categories', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const { month } = req.query; // e.g. "06/2026", defaults to current month
+    const { month } = req.query;
 
     const now = new Date();
     const mm   = String(now.getMonth() + 1).padStart(2, '0');
@@ -87,7 +95,7 @@ router.get('/categories', async (req, res) => {
               COUNT(*) as count,
               COALESCE(SUM(amount_ils), 0) as total
        FROM transactions
-       WHERE date LIKE $1 AND charge_type = 'חיוב' AND source = 'isracard'
+       WHERE date LIKE $1 AND ${ISRACARD_SPEND}
        GROUP BY COALESCE(category, 'other')
        ORDER BY total DESC`,
       [pattern]
@@ -116,39 +124,38 @@ router.get('/stats', async (req, res) => {
     const [thisMonthRes, lastMonthRes, biggestRes, dailyRes, categoryRes, ccChargesRes] = await Promise.all([
       pool.query(
         `SELECT COALESCE(SUM(amount_ils),0) as total, COUNT(*) as count
-         FROM transactions WHERE date LIKE $1 AND charge_type='חיוב' AND source='isracard'`,
+         FROM transactions WHERE date LIKE $1 AND ${ISRACARD_SPEND}`,
         [thisMonthPattern]
       ),
       pool.query(
         `SELECT COALESCE(SUM(amount_ils),0) as total
-         FROM transactions WHERE date LIKE $1 AND charge_type='חיוב' AND source='isracard'`,
+         FROM transactions WHERE date LIKE $1 AND ${ISRACARD_SPEND}`,
         [lastMonthPattern]
       ),
       pool.query(
         `SELECT business, amount_ils FROM transactions
-         WHERE charge_type='חיוב' AND source='isracard' AND amount_ils IS NOT NULL
+         WHERE ${ISRACARD_SPEND} AND amount_ils IS NOT NULL
          ORDER BY amount_ils DESC LIMIT 1`
       ),
       pool.query(`
         SELECT date, SUM(amount_ils) as total
         FROM transactions
         WHERE to_date(date,'DD/MM/YYYY') >= NOW() - INTERVAL '30 days'
-          AND charge_type='חיוב' AND source='isracard'
+          AND ${ISRACARD_SPEND}
         GROUP BY date
         ORDER BY to_date(date,'DD/MM/YYYY') ASC
       `),
-      // Category breakdown for current month
       pool.query(
         `SELECT COALESCE(category,'other') as category,
                 COUNT(*) as count,
                 COALESCE(SUM(amount_ils),0) as total
          FROM transactions
-         WHERE date LIKE $1 AND charge_type='חיוב' AND source='isracard'
+         WHERE date LIKE $1 AND ${ISRACARD_SPEND}
          GROUP BY COALESCE(category,'other')
          ORDER BY total DESC`,
         [thisMonthPattern]
       ),
-      // Discount: monthly credit card charges (ישראכרט חיוב)
+      // Discount: monthly Isracard bill hits (debit from bank account)
       pool.query(`
         SELECT date,
                SUM(CASE WHEN charge_type='חיוב' THEN amount_ils ELSE 0 END) as charged,

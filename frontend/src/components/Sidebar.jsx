@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, Settings, Landmark } from 'lucide-react'
+import { LayoutDashboard, List, Settings, Landmark, BarChart2 } from 'lucide-react'
 
 const links = [
-  { to: '/',             icon: LayoutDashboard, label: 'דשבורד' },
-  { to: '/transactions', icon: List,             label: 'פעולות'  },
-  { to: '/settings',     icon: Settings,         label: 'הגדרות'  },
+  { to: '/',             icon: LayoutDashboard, label: 'דשבורד'      },
+  { to: '/transactions', icon: List,             label: 'פעולות'      },
+  { to: '/analytics',    icon: BarChart2,        label: 'ניתוח'       },
+  { to: '/settings',     icon: Settings,         label: 'הגדרות'      },
 ]
 
 export default function Sidebar() {
