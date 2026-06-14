@@ -93,7 +93,7 @@ export default function WhatIf() {
   const monthlyBase = (base?.salary || 0) - (base?.fixed || 0) - (base?.avgCC || 0)
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Sparkles size={22} className="text-purple-400" /> מה אם?
@@ -102,9 +102,9 @@ export default function WhatIf() {
       </div>
 
       {/* Base cash flow summary */}
-      <div className="bg-gray-800 rounded-xl p-5">
+      <div className="bg-gray-800 rounded-xl p-4 md:p-5">
         <h2 className="text-sm font-semibold text-gray-400 mb-3">בסיס חודשי (ללא שינויים)</h2>
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="grid grid-cols-3 gap-2 md:gap-4 text-center">
           <div>
             <p className="text-xs text-gray-500">משכורת</p>
             <p className="text-lg font-bold text-green-400">{fmt(base?.salary || 0)}</p>
@@ -144,7 +144,7 @@ export default function WhatIf() {
           const typeMeta = SCENARIO_TYPES.find(t => t.key === sc.type)
           return (
             <div key={sc.id} className="bg-gray-900 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 sm:flex-wrap">
                 <select value={sc.type}
                   onChange={e => updateScenario(sc.id, { type: e.target.value })}
                   className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">

@@ -82,8 +82,8 @@ export default function Budget() {
   const fmt = n => `₪${Number(n).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">תקציב 📊</h1>
           <p className="text-sm text-gray-500 mt-0.5">הגדר תקציב לפי קטגוריה ועקוב אחר ביצוע</p>
@@ -104,7 +104,7 @@ export default function Budget() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="bg-gray-800 rounded-xl p-4">
           <p className="text-xs text-gray-500 mb-1">תקציב כולל</p>
           <p className="text-xl font-bold text-white">{fmt(totalBudget)}</p>
@@ -125,7 +125,7 @@ export default function Budget() {
 
       {/* Category rows */}
       <div className="bg-gray-800 rounded-xl overflow-hidden">
-        <div className="grid grid-cols-12 px-4 py-2 text-xs font-semibold text-gray-500 border-b border-gray-700 uppercase tracking-wider">
+        <div className="hidden md:grid grid-cols-12 px-4 py-2 text-xs font-semibold text-gray-500 border-b border-gray-700 uppercase tracking-wider">
           <span className="col-span-3">קטגוריה</span>
           <span className="col-span-3">תקציב ₪</span>
           <span className="col-span-2">בפועל</span>
@@ -138,7 +138,7 @@ export default function Budget() {
             const delta = (row.budget || 0) - (row.actual || 0)
             const over  = delta < 0
             return (
-              <div key={row.category} className="grid grid-cols-12 px-4 py-3 items-center gap-y-0.5 hover:bg-gray-700/20 transition-colors">
+              <div key={row.category} className="px-4 py-3 hover:bg-gray-700/20 transition-colors">
                 <span className="col-span-3 flex items-center gap-2 text-sm">
                   <span>{meta.emoji}</span>
                   <span className="text-gray-300">{meta.label}</span>

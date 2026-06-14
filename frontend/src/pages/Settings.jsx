@@ -33,7 +33,7 @@ function Section({ title, badge, badgeColor = 'blue', children }) {
     purple: 'bg-purple-600/20 text-purple-400 border-purple-600/30',
   }
   return (
-    <div className="bg-gray-800 rounded-xl p-6 space-y-4">
+    <div className="bg-gray-800 rounded-xl p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-3 pb-3 border-b border-gray-700">
         <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${colors[badgeColor] || colors.blue}`}>{badge}</span>
         <h2 className="text-base font-semibold text-white">{title}</h2>
@@ -118,7 +118,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-6 max-w-2xl space-y-6">
+    <div className="p-4 md:p-6 max-w-2xl space-y-4 md:space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">הגדרות ⚙️</h1>
         <p className="text-sm text-gray-500 mt-1">ניהול חשבונות, כרטיסים, תקציב והתראות</p>
