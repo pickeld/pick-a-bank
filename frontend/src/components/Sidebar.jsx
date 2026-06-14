@@ -1,10 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, Settings, Landmark, BarChart2, Upload } from 'lucide-react'
+import { LayoutDashboard, List, Settings, Landmark, BarChart2, Upload, PiggyBank, Sparkles } from 'lucide-react'
 
 const links = [
   { to: '/',             icon: LayoutDashboard, label: 'דשבורד'  },
   { to: '/transactions', icon: List,             label: 'פעולות'  },
   { to: '/analytics',    icon: BarChart2,        label: 'ניתוח'   },
+  { to: '/budget',       icon: PiggyBank,        label: 'תקציב'   },
+  { to: '/whatif',       icon: Sparkles,         label: 'מה אם?'  },
   { to: '/import',       icon: Upload,           label: 'ייבוא'   },
   { to: '/settings',     icon: Settings,         label: 'הגדרות'  },
 ]

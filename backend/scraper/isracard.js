@@ -153,24 +153,26 @@ async function exportMonth(page, { cardSuffix, companyCode, cardStatus, isPartne
   if (headerIdx < 0) return [];
 
   const headers = rows[headerIdx];
-  const iDate    = headers.indexOf('תאריך רכישה');
-  const iBiz     = headers.indexOf('שם בית עסק');
-  const iAmt     = headers.indexOf('סכום עסקה');
-  const iCur     = headers.indexOf('מטבע עסקה');
-  const iOrigAmt = headers.indexOf('סכום מקורי');
-  const iOrigCur = headers.indexOf('מטבע מקורי');
+  const iDate         = headers.findIndex(h => String(h).includes('תאריך רכישה'));
+  const iBiz          = headers.findIndex(h => String(h).includes('שם בית עסק'));
+  const iAmt          = headers.findIndex(h => String(h).includes('סכום עסקה'));
+  const iCur          = headers.findIndex(h => String(h).includes('מטבע עסקה'));
+  const iIlsAmt       = headers.findIndex(h => String(h).includes('סכום לחיוב'));
+  const iPaymentNum   = headers.findIndex(h => String(h) === 'מספר תשלום');
+  const iTotalPayments = headers.findIndex(h => String(h).includes('מספר תשלומים'));
+
+  const ILS_NAMES = new Set(['₪', 'שקל', 'ILS', 'NIS', 'שקל חדש', '']);
 
   const txns = [];
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r];
     if (!row || row.every(c => c === '' || c === null)) continue;
 
-    const rawDate = String(row[iDate] || '').trim();
-    const business = String(row[iBiz] || '').trim();
-    const amount = parseFloat(String(row[iAmt] || '').replace(/,/g, '')) || null;
-    if (!rawDate || !business || amount === null) continue;
+    const rawDate  = String(row[iDate] || '').trim();
+    const business = String(row[iBiz]  || '').trim();
+    const txnAmt   = parseFloat(String(row[iAmt] || '').replace(/,/g, '')) || null;
+    if (!rawDate || !business || txnAmt === null) continue;
 
-    // Convert DD.MM.YY to DD/MM/YYYY
     let date = rawDate;
     if (/^\d{2}\.\d{2}\.\d{2}$/.test(rawDate)) {
       const [d, m, y] = rawDate.split('.');
@@ -180,24 +182,36 @@ async function exportMonth(page, { cardSuffix, companyCode, cardStatus, isPartne
     }
 
     const currency = String(row[iCur] || '').trim();
-    const origAmt  = iOrigAmt >= 0 ? parseFloat(String(row[iOrigAmt] || '').replace(/,/g, '')) || null : null;
-    const origCur  = iOrigCur >= 0 ? String(row[iOrigCur] || '').trim() : null;
+    const isIls    = ILS_NAMES.has(currency);
 
-    const ILS_NAMES = new Set(['₪', 'שקל', 'ILS', 'NIS', 'שקל חדש', '']);
-    const isIls = ILS_NAMES.has(currency);
+    // ILS billing amount: use dedicated column if exists, else fall back to txnAmt for ILS
+    const ilsBilling = iIlsAmt >= 0
+      ? parseFloat(String(row[iIlsAmt] || '').replace(/,/g, '')) || null
+      : null;
+    const amountILS = ilsBilling ?? (isIls ? txnAmt : null);
+
+    // Foreign amount: original transaction amount when non-ILS
+    const foreignAmount   = !isIls ? txnAmt : null;
+    const foreignCurrency = !isIls ? currency : null;
+
+    // Installments
+    const paymentNum    = iPaymentNum    >= 0 ? parseInt(row[iPaymentNum])    || null : null;
+    const totalPayments = iTotalPayments >= 0 ? parseInt(row[iTotalPayments]) || null : null;
 
     txns.push({
       date,
       business,
-      amountILS:       amount,
-      foreignAmount:   !isIls && origAmt && origAmt !== amount ? origAmt : null,
-      foreignCurrency: !isIls ? origCur || currency : null,
-      currency:        currency || 'שקל חדש',
-      currencySymbol:  '₪',
-      chargeType:      'זיכוי',   // all xlsx exports are purchases
-      card:            cardSuffix,
-      confirmation:    `${date}-${business.trim().slice(0, 30)}-${amount}`,
-      _raw:            {},
+      amountILS:      amountILS ?? txnAmt,
+      foreignAmount,
+      foreignCurrency,
+      currency:       currency || 'שקל חדש',
+      currencySymbol: '₪',
+      chargeType:     'זיכוי',
+      card:           cardSuffix,
+      paymentNum,
+      totalPayments,
+      confirmation:   `${date}-${business.trim().slice(0, 30)}-${txnAmt}`,
+      _raw:           {},
     });
   }
 

@@ -21,8 +21,9 @@ async function upsertTransactions(pool, source, txns) {
         `INSERT INTO transactions
            (source, date, business, description, amount_ils, ils_amount,
             foreign_amount, foreign_currency,
-            currency, currency_symbol, type, country, card, charge_type, confirmation, raw, category)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+            currency, currency_symbol, type, country, card, charge_type, confirmation, raw,
+            category, payment_num, total_payments)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
          ON CONFLICT (source, confirmation, date, business, amount_ils) DO NOTHING`,
         [
           source,
@@ -42,6 +43,8 @@ async function upsertTransactions(pool, source, txns) {
           confirmation,
           JSON.stringify(t._raw || t),
           category,
+          t.paymentNum    ?? null,
+          t.totalPayments ?? null,
         ]
       );
       inserted++;

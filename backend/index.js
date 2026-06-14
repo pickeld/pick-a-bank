@@ -9,6 +9,9 @@ const transactionsRouter = require('./routes/transactions');
 const scrapeRouter       = require('./routes/scrape');
 const analyticsRouter    = require('./routes/analytics');
 const importRouter       = require('./routes/import');
+const cardsRouter        = require('./routes/cards');
+const budgetsRouter      = require('./routes/budgets');
+const pushRouter         = require('./routes/push');
 const { runScrape } = require('./scraper/runner');
 const { initDb }    = require('./db/init');
 
@@ -27,6 +30,9 @@ app.use('/api/transactions', transactionsRouter);
 app.use('/api/scrape',       scrapeRouter);
 app.use('/api/analytics',    analyticsRouter);
 app.use('/api/import',       importRouter);
+app.use('/api/cards',        cardsRouter);
+app.use('/api/budgets',      budgetsRouter);
+app.use('/api/push',         pushRouter);
 
 (async () => {
   await initDb(pool);

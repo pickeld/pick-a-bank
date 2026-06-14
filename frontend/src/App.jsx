@@ -5,6 +5,8 @@ import Settings from './pages/Settings'
 import Transactions from './pages/Transactions'
 import Analytics from './pages/Analytics'
 import Import from './pages/Import'
+import Budget from './pages/Budget'
+import WhatIf from './pages/WhatIf'
 
 export default function App() {
   return (
@@ -13,12 +15,14 @@ export default function App() {
         <Sidebar />
         <main className="flex-1 overflow-auto">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/"             element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/import" element={<Import />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/analytics"   element={<Analytics />} />
+            <Route path="/budget"      element={<Budget />} />
+            <Route path="/whatif"      element={<WhatIf />} />
+            <Route path="/import"      element={<Import />} />
+            <Route path="/settings"    element={<Settings />} />
+            <Route path="*"            element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>

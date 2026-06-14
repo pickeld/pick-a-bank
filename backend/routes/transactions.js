@@ -6,7 +6,7 @@ const ISRACARD_SPEND = `source='isracard' AND charge_type='זיכוי'`;
 router.get('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const { source = 'all', search = '', category = '', from = '', to = '', page = 1, limit = 50 } = req.query;
+    const { source = 'all', search = '', category = '', from = '', to = '', billing_cycle = '', page = 1, limit = 50 } = req.query;
 
     const conditions = [];
     const params = [];
@@ -18,8 +18,14 @@ router.get('/', async (req, res) => {
     } else if (category) {
       params.push(category); conditions.push(`category = $${params.length}`);
     }
-    if (from) { params.push(from); conditions.push(`to_date(date,'DD/MM/YYYY') >= to_date($${params.length},'DD/MM/YYYY')`); }
-    if (to)   { params.push(to);   conditions.push(`to_date(date,'DD/MM/YYYY') <= to_date($${params.length},'DD/MM/YYYY')`); }
+    if (billing_cycle === 'next') {
+      conditions.push(`to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') FROM transactions WHERE source='isracard' ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1)`);
+    } else if (billing_cycle === 'prev') {
+      conditions.push(`to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') FROM transactions WHERE source='isracard' AND to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') != (SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') FROM transactions WHERE source='isracard' ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1) ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1) AND source='isracard'`);
+    } else {
+      if (from) { params.push(from); conditions.push(`to_date(date,'DD/MM/YYYY') >= to_date($\${params.length},'DD/MM/YYYY')`); }
+      if (to)   { params.push(to);   conditions.push(`to_date(date,'DD/MM/YYYY') <= to_date($\${params.length},'DD/MM/YYYY')`); }
+    }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const countRes = await pool.query(`SELECT COUNT(*) FROM transactions ${where}`, params);
