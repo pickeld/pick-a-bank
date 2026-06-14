@@ -28,10 +28,7 @@ app.use(express.json());
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
-// Public: auth routes (no JWT required)
 app.use('/api/auth', authRouter);
-
-// All other /api routes require a valid JWT
 app.use('/api', authMiddleware);
 app.use('/api/settings',     settingsRouter);
 app.use('/api/transactions', transactionsRouter);
@@ -46,15 +43,39 @@ app.use('/api/push',         pushRouter);
   await initDb(pool);
   app.listen(PORT, '0.0.0.0', () => console.log(`[backend] listening on :${PORT}`));
 
-  cron.schedule('0 * * * *', async () => {
-    const { rows } = await pool.query('SELECT * FROM settings LIMIT 1');
-    if (!rows.length) return;
-    const s = rows[0];
-    const now        = new Date();
-    const lastScrape = s.last_scrape ? new Date(s.last_scrape) : null;
-    if (!lastScrape || (now - lastScrape) / 3600000 >= (s.scrape_interval_hours || 6)) {
-      console.log('[cron] triggering scrape');
-      await runScrape(pool, s, s.user_id);
+  // Run every minute — check each user's scrape_time in their timezone
+  cron.schedule('* * * * *', async () => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT * FROM settings
+         WHERE isracard_id IS NOT NULL OR discount_id IS NOT NULL`
+      );
+      for (const s of rows) {
+        const tz       = s.scrape_timezone || 'Asia/Jerusalem';
+        const target   = s.scrape_time     || '08:00';
+        const [tH, tM] = target.split(':').map(Number);
+
+        // Current time in user's timezone
+        const now      = new Date();
+        const userTime = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+        const uH       = userTime.getHours();
+        const uM       = userTime.getMinutes();
+
+        if (uH !== tH || uM !== tM) continue;
+
+        // Don't scrape twice in the same minute
+        if (s.last_scrape) {
+          const diff = (now - new Date(s.last_scrape)) / 60000;
+          if (diff < 1) continue;
+        }
+
+        console.log(`[cron] scraping for user ${s.user_id} at ${target} ${tz}`);
+        runScrape(pool, s, s.user_id).catch(e =>
+          console.error('[cron] scrape error:', e.message)
+        );
+      }
+    } catch (e) {
+      console.error('[cron] error:', e.message);
     }
   });
 })();

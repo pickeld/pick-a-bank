@@ -34,7 +34,7 @@ router.post('/', async (req, res) => {
     const {
       isracard_id, isracard_card6, isracard_password,
       discount_id, discount_password, discount_num,
-      scrape_interval_hours, openai_key,
+      scrape_interval_hours, scrape_time, scrape_timezone, openai_key,
       notify_new_transactions, notify_daily_digest,
     } = req.body;
 
@@ -48,6 +48,8 @@ router.post('/', async (req, res) => {
         isracard_id, isracard_card6,
         discount_id, discount_num,
         scrape_interval_hours: scrape_interval_hours || 6,
+        scrape_time: scrape_time || '08:00',
+        scrape_timezone: scrape_timezone || 'Asia/Jerusalem',
         openai_key: openai_key || null,
         notify_new_transactions: !!notify_new_transactions,
         notify_daily_digest: !!notify_daily_digest,
@@ -67,11 +69,12 @@ router.post('/', async (req, res) => {
       await pool.query(
         `INSERT INTO settings
            (user_id, isracard_id, isracard_card6, isracard_password,
-            discount_id, discount_password, discount_num, scrape_interval_hours,
+            discount_id, discount_password, discount_num, scrape_interval_hours, scrape_time, scrape_timezone,
             openai_key, notify_new_transactions, notify_daily_digest)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [userId, isracard_id, isracard_card6, isracard_password,
-         discount_id, discount_password, discount_num, scrape_interval_hours || 6,
+         discount_id, discount_password, discount_num, scrape_interval_hours || 6, scrape_time || '08:00', scrape_timezone || 'Asia/Jerusalem',
+         scrape_time || '08:00', scrape_timezone || 'Asia/Jerusalem',
          openai_key || null, !!notify_new_transactions, !!notify_daily_digest]
       );
     }
