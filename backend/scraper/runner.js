@@ -1,5 +1,6 @@
 const { scrapeIsracard } = require('./isracard');
 const { scrapeDiscount } = require('./discount');
+const { categorize } = require('../lib/categorize');
 
 async function upsertTransactions(pool, source, txns) {
   let inserted = 0;
@@ -13,22 +14,25 @@ async function upsertTransactions(pool, source, txns) {
         t.confirmationNumber ||
         `${t.date || t.purchaseDate}-${(t.business || t.businessName || '').trim()}-${amountIls}`;
 
+      const business = t.business || t.businessName;
+      const category = categorize(business);
+
       await pool.query(
         `INSERT INTO transactions
            (source, date, business, description, amount_ils, ils_amount,
             foreign_amount, foreign_currency,
-            currency, currency_symbol, type, country, card, charge_type, confirmation, raw)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+            currency, currency_symbol, type, country, card, charge_type, confirmation, raw, category)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
          ON CONFLICT (source, confirmation, date, business, amount_ils) DO NOTHING`,
         [
           source,
           t.date || t.purchaseDate,
-          t.business || t.businessName,
+          business,
           t.description || t.transactionDescription || null,
           amountIls,
-          amountIls,                          // ils_amount = same as amount_ils (ILS billed)
-          t.foreignAmount ?? null,            // foreign currency amount
-          t.foreignCurrency ?? null,          // e.g. 'RSD', 'EUR', 'USD'
+          amountIls,
+          t.foreignAmount ?? null,
+          t.foreignCurrency ?? null,
           t.currency || 'ILS',
           t.currencySymbol || '₪',
           t.type || t.tranzacCodeDescription || null,
@@ -36,7 +40,8 @@ async function upsertTransactions(pool, source, txns) {
           t.card || t.cardSuffix || null,
           t.chargeType || (t.creditOrCharge === 1 ? 'חיוב' : 'זיכוי'),
           confirmation,
-          JSON.stringify(t._raw || t),        // store the original raw API object
+          JSON.stringify(t._raw || t),
+          category,
         ]
       );
       inserted++;
