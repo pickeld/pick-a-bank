@@ -11,9 +11,11 @@ import WhatIf from './pages/WhatIf'
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex min-h-screen bg-gray-950">
+      <div className="flex min-h-screen bg-gray-950 flex-col md:flex-row">
+        {/* Side sidebar — desktop only */}
         <Sidebar />
-        <main className="flex-1 overflow-auto">
+        {/* Main content — add bottom padding on mobile for tab bar */}
+        <main className="flex-1 overflow-auto pb-20 md:pb-0">
           <Routes>
             <Route path="/"             element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
