@@ -209,13 +209,23 @@ async function exportMonth(page, { cardSuffix, companyCode, cardStatus, isPartne
 
 function billingMonths(n) {
   const months = [];
+  // Always start with NEXT month (isNextBillingDate=true) — this is the current
+  // accumulating cycle that has not been charged yet (e.g. July charge on 02/07).
+  const next = new Date();
+  next.setDate(1);
+  next.setMonth(next.getMonth() + 1);
+  months.push({
+    label: `01/${String(next.getMonth() + 1).padStart(2, '0')}/${next.getFullYear()}`,
+    isNext: true,
+  });
+  // Then current month and n months back (isNextBillingDate=false)
   for (let i = 0; i <= n; i++) {
     const d = new Date();
     d.setDate(1);
     d.setMonth(d.getMonth() - i);
     months.push({
       label: `01/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`,
-      isNext: i === 0,
+      isNext: false,
     });
   }
   return months;
