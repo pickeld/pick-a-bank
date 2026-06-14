@@ -1,13 +1,11 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/client'
 import StatCard from '../components/StatCard'
 import SpendingChart from '../components/SpendingChart'
 import ScrapeButton from '../components/ScrapeButton'
 import TransactionRow, { CATEGORY_META } from '../components/TransactionRow'
-import { RefreshCw, Clock, CreditCard } from 'lucide-react'
-
-// ── SVG Donut Chart ─────────────────────────────────────────────────────────
+import { RefreshCw, Clock, CreditCard, TrendingDown, Wallet, Building2 } from 'lucide-react'
 
 const DONUT_COLORS = [
   '#f97316','#22c55e','#eab308','#38bdf8','#818cf8',
@@ -39,15 +37,11 @@ function DonutChart({ data, total }) {
   return (
     <div className="relative flex items-center justify-center">
       <svg width="200" height="200" style={{ transform: 'rotate(-90deg)' }}>
-        {/* Background ring */}
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1f2937" strokeWidth="28" />
         {slices.map((s, i) => (
           <circle
-            key={i}
-            cx={cx} cy={cy} r={r}
-            fill="none"
-            stroke={s.color}
-            strokeWidth="28"
+            key={i} cx={cx} cy={cy} r={r} fill="none"
+            stroke={s.color} strokeWidth="28"
             strokeDasharray={`${animated ? s.dash : 0} ${circumference - (animated ? s.dash : 0)}`}
             strokeDashoffset={-s.offset}
             style={{ transition: 'stroke-dasharray 0.8s ease' }}
@@ -62,31 +56,11 @@ function DonutChart({ data, total }) {
   )
 }
 
-// ── CC Charge Cards ──────────────────────────────────────────────────────────
-
-function CCChargeCard({ item }) {
-  const fmt = (n) => n == null ? '—' : `₪${Number(n).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`
-  // date is DD/MM/YYYY
-  const [dd, mm, yyyy] = (item.date || '').split('/')
-  const monthName = mm && yyyy
-    ? new Date(`${yyyy}-${mm}-01`).toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })
-    : item.date
-  return (
-    <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 flex flex-col gap-1 min-w-0">
-      <p className="text-xs text-gray-500 truncate">{monthName}</p>
-      <p className="text-xl font-bold text-white">{fmt(item.charged)}</p>
-      <p className="text-xs text-gray-600 flex items-center gap-1"><CreditCard size={11} /> חיוב ישראכרט</p>
-    </div>
-  )
-}
-
-// ── Main Dashboard ───────────────────────────────────────────────────────────
-
 export default function Dashboard() {
-  const [stats, setStats] = useState(null)
-  const [recent, setRecent] = useState([])
+  const [stats, setStats]           = useState(null)
+  const [recent, setRecent]         = useState([])
   const [scrapeStatus, setScrapeStatus] = useState({})
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading]       = useState(true)
   const navigate = useNavigate()
 
   async function load() {
@@ -108,10 +82,10 @@ export default function Dashboard() {
 
   const fmt = (n) => n == null ? '—' : `₪${Number(n).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`
 
-  const categories = stats?.categories || []
-  const catTotal = categories.reduce((s, c) => s + parseFloat(c.total || 0), 0)
-
-  const ccCharges = (stats?.ccCharges || []).slice(0, 3)
+  const categories  = stats?.categories || []
+  const catTotal    = categories.reduce((s, c) => s + parseFloat(c.total || 0), 0)
+  const nextCC      = stats?.nextCCCharge
+  const bankSummary = stats?.bankSummary
 
   return (
     <div className="p-6 space-y-6">
@@ -141,41 +115,94 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="הוצאות החודש"      value={fmt(stats?.thisMonth?.total)}   sub={`${stats?.thisMonth?.count || 0} פעולות`} color="blue" />
-          <StatCard title="הוצאות חודש שעבר"  value={fmt(stats?.lastMonth?.total)}   sub="לעומת חודש שעבר"                          color="purple" />
-          <StatCard title="מספר פעולות"        value={stats?.thisMonth?.count ?? '—'} sub="החודש"                                    color="green" />
-          <StatCard title="הוצאה גדולה"        value={fmt(stats?.biggest?.amount_ils)} sub={stats?.biggest?.business || '—'}         color="red" />
+          <StatCard
+            title="חיוב ישראכרט הבא"
+            value={fmt(nextCC?.total)}
+            sub={`${nextCC?.count || 0} פעולות · ${nextCC?.chargeDate || bankSummary?.nextCCChargeDate || '02/07/2026'}`}
+            color="orange"
+          />
+          <StatCard
+            title="חיוב קודם"
+            value={fmt(stats?.lastMonth?.total)}
+            sub={`שולם ${bankSummary?.lastCCChargeDate || '—'}`}
+            color="purple"
+          />
+          <StatCard
+            title="משכורת אחרונה"
+            value={fmt(bankSummary?.lastSalary?.amount)}
+            sub={bankSummary?.lastSalary?.date || '—'}
+            color="green"
+          />
+          <StatCard
+            title="הוצאה גדולה"
+            value={fmt(stats?.biggest?.amount_ils)}
+            sub={stats?.biggest?.business || '—'}
+            color="red"
+          />
         </div>
       )}
 
-      {/* CC Monthly Charges */}
-      {ccCharges.length > 0 && (
+      {/* Bank Status Panel */}
+      {!loading && (nextCC || bankSummary) && (
         <div className="bg-gray-800 rounded-xl p-5">
           <h2 className="text-sm font-semibold text-gray-400 mb-4 flex items-center gap-2">
-            <CreditCard size={15} /> חיוב ישראכרט חודשי (מחשבון הבנק)
+            <Building2 size={15} /> סטטוס חשבון
           </h2>
-          <div className="grid grid-cols-3 gap-3">
-            {ccCharges.map((c, i) => <CCChargeCard key={i} item={c} />)}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+            {/* Next CC charge */}
+            <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CreditCard size={14} className="text-orange-400" />
+                <p className="text-xs text-orange-400 font-medium">חיוב ישראכרט הבא</p>
+              </div>
+              <p className="text-2xl font-bold text-white tabular-nums">{fmt(nextCC?.total)}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {nextCC?.count} פעולות · {nextCC?.fromDate} – {nextCC?.toDate}
+              </p>
+              <p className="text-xs text-orange-400/70 mt-1 font-medium">
+                צפוי לחיוב: {nextCC?.chargeDate || bankSummary?.nextCCChargeDate || '02/07/2026'}
+              </p>
+            </div>
+
+            {/* Last salary */}
+            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Wallet size={14} className="text-green-400" />
+                <p className="text-xs text-green-400 font-medium">משכורת אחרונה</p>
+              </div>
+              <p className="text-2xl font-bold text-white tabular-nums">{fmt(bankSummary?.lastSalary?.amount)}</p>
+              <p className="text-xs text-gray-500 mt-1">{bankSummary?.lastSalary?.date || '—'}</p>
+            </div>
+
+            {/* Monthly fixed costs */}
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingDown size={14} className="text-blue-400" />
+                <p className="text-xs text-blue-400 font-medium">הוצאות קבועות החודש</p>
+              </div>
+              <p className="text-2xl font-bold text-white tabular-nums">{fmt(bankSummary?.monthlyFixed)}</p>
+              <p className="text-xs text-gray-500 mt-1">משכנתא · שכירות · הלוואות · העברות</p>
+            </div>
+
           </div>
         </div>
       )}
 
       {/* Category Breakdown */}
       <div className="bg-gray-800 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-gray-400 mb-4">התפלגות הוצאות לפי קטגוריה — החודש</h2>
+        <h2 className="text-sm font-semibold text-gray-400 mb-4">התפלגות הוצאות לפי קטגוריה — מחזור נוכחי</h2>
         {loading || categories.length === 0 ? (
-          <p className="text-gray-600 text-sm text-center py-6">אין נתוני קטגוריות לחודש זה</p>
+          <p className="text-gray-600 text-sm text-center py-6">אין נתוני קטגוריות</p>
         ) : (
           <div className="flex flex-col lg:flex-row gap-6 items-start">
-            {/* Donut */}
             <div className="flex-shrink-0 mx-auto lg:mx-0">
               <DonutChart data={categories} total={catTotal} />
             </div>
-            {/* List */}
             <div className="flex-1 space-y-2 w-full">
               {categories.map((c, i) => {
-                const meta = CATEGORY_META[c.category] || CATEGORY_META.other
-                const pct = catTotal > 0 ? ((c.total / catTotal) * 100).toFixed(1) : 0
+                const meta  = CATEGORY_META[c.category] || CATEGORY_META.other
+                const pct   = catTotal > 0 ? ((c.total / catTotal) * 100).toFixed(1) : 0
                 const color = DONUT_COLORS[i % DONUT_COLORS.length]
                 return (
                   <button
@@ -211,7 +238,7 @@ export default function Dashboard() {
         </div>
         <div className="divide-y divide-gray-700/50">
           {recent.length === 0 ? (
-            <p className="text-center text-gray-600 py-12">אין פעולות עדיין — לחץ "סרוק עכשיו" להתחלה</p>
+            <p className="text-center text-gray-600 py-12">אין פעולות עדיין — לחץ &quot;סרוק עכשיו&quot; להתחלה</p>
           ) : (
             recent.map((t) => <TransactionRow key={t.id} txn={t} />)
           )}
