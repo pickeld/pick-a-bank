@@ -1,18 +1,9 @@
-/**
- * Discount Bank scraper using israeli-bank-scrapers.
- *
- * Session persistence: cookies saved to .discount-cookies.json after each
- * successful scrape and reinjected on the next run to avoid repeated logins.
- *
- * The cookie hook uses Playwright's Browser.contexts() API correctly.
- */
-
-const { CompanyTypes, createScraper } = require('israeli-bank-scrapers');
+const { firefox } = require('playwright');
 const fs   = require('fs');
 const path = require('path');
 
-const COOKIES_PATH  = path.join(__dirname, '.discount-cookies.json');
-const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/app/node_modules/puppeteer/.local-chromium/linux-843427/chrome-linux/chrome';
+const BASE_URL     = 'https://start.telebank.co.il';
+const COOKIES_PATH = path.join(__dirname, '.discount-cookies.json');
 
 function loadCookies() {
   try {
@@ -24,79 +15,129 @@ function loadCookies() {
   return null;
 }
 
-function saveCookies(cookies) {
-  try {
-    fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies, null, 2));
-    console.log(`[discount] cookies saved (${cookies.length} entries)`);
-  } catch (e) {
-    console.warn('[discount] could not save cookies:', e.message);
-  }
+async function saveCookies(ctx) {
+  const cookies = await ctx.cookies();
+  fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies, null, 2));
+  console.log(`[discount] cookies saved (${cookies.length})`);
 }
 
 async function scrapeDiscount({ id, password, num }) {
-  const startDate    = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const savedCookies = loadCookies();
+  const playwrightOpts = process.env.PLAYWRIGHT_BROWSERS_PATH
+    ? { executablePath: undefined }
+    : {};
 
-  const scraper = createScraper({
-    companyId:   CompanyTypes.discount,
-    startDate,
-    showBrowser: false,
-    executablePath: CHROMIUM_PATH,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    timeout: 60000,
-    defaultTimeout: 60000,
-    // Pass saved cookies so the scraper can reuse an existing session
-    ...(savedCookies ? { cookies: savedCookies } : {}),
-  });
+  const b   = await firefox.launch({ headless: true, ...playwrightOpts });
+  const ctx = await b.newContext({ locale: 'he-IL' });
 
-  scraper.onProgress((phase) => {
-    if (phase === 'LOGGING_IN')          console.log('[discount] logging in...');
-    if (phase === 'FETCHING_TRANSACTIONS') console.log('[discount] fetching transactions...');
-  });
-
-  const result = await scraper.scrape({ id, password, num });
-
-  // Note: israeli-bank-scrapers does not expose the browser context in a
-  // reliable way — skip cookie extraction to avoid crashes.
-  // We rely on re-login when the session expires.
-
-  if (!result.success) {
-    throw new Error(result.errorMessage || result.errorType || 'Discount scrape failed');
+  const saved = loadCookies();
+  if (saved) {
+    await ctx.addCookies(saved);
+    console.log(`[discount] reusing saved session`);
   }
 
-  const txns = [];
-  for (const account of result.accounts || []) {
-    for (const t of account.txns || []) {
-      const amount   = Math.abs(t.chargedAmount ?? t.originalAmount ?? 0);
-      const isCharge = (t.chargedAmount ?? 0) < 0;
+  const p = await ctx.newPage();
 
-      let date = t.date;
-      if (date) {
-        const d  = new Date(date);
-        const dd = String(d.getDate()).padStart(2, '0');
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        date = `${dd}/${mm}/${d.getFullYear()}`;
+  try {
+    // ── Try reusing session first ───────────────────────────────────────────
+    await p.goto(`${BASE_URL}/apollo/retail2/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await p.waitForTimeout(2000);
+
+    const needsLogin = p.url().includes('LOGIN_PAGE') || p.url().includes('/login/');
+
+    if (needsLogin) {
+      console.log('[discount] session expired — logging in...');
+      await p.goto(`${BASE_URL}/login/#/LOGIN_PAGE`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await p.waitForSelector('#tzId', { timeout: 15000 });
+
+      await p.fill('#tzId', id);
+      await p.fill('#tzPassword', password);
+      await p.fill('#aidnum', num);
+      await p.click('.sendBtn');
+      await p.waitForTimeout(5000);
+
+      if (p.url().includes('LOGIN_PAGE') || p.url().includes('/login/')) {
+        const errText = await p.evaluate(() => {
+          const el = document.querySelector('#general-error, .error-message, [class*="error"]');
+          return el ? el.textContent.trim().slice(0, 200) : 'unknown';
+        });
+        throw new Error(`Login failed: ${errText}`);
       }
 
-      txns.push({
-        date,
-        business:        t.description,
-        description:     null,
-        amountILS:       amount,
-        foreignAmount:   null,
-        foreignCurrency: null,
-        currency:        t.originalCurrency || 'ILS',
-        currencySymbol:  '₪',
-        type:            t.type || null,
-        country:         null,
-        card:            account.accountNumber,
-        chargeType:      isCharge ? 'חיוב' : 'זיכוי',
-        confirmation:    `${t.date}-${t.description}-${t.chargedAmount}`,
-      });
+      console.log('[discount] login OK');
+      await saveCookies(ctx);
+    } else {
+      console.log('[discount] session reused OK');
     }
-  }
 
-  return txns;
+    // ── Fetch account list ──────────────────────────────────────────────────
+    const accountData = await p.evaluate(async (baseUrl) => {
+      const r = await fetch(`${baseUrl}/Titan/gatewayAPI/userAccountsData`, { credentials: 'include' });
+      return { status: r.status, body: await r.json().catch(() => null) };
+    }, BASE_URL);
+
+    if (accountData.status !== 200 || !accountData.body) {
+      throw new Error(`userAccountsData failed: HTTP ${accountData.status}`);
+    }
+
+    const accounts = accountData.body?.UserAccountsData?.UserAccounts?.map(a => a.NewAccountInfo.AccountID) || [];
+    console.log(`[discount] ${accounts.length} account(s): ${accounts.join(', ')}`);
+
+    // ── Fetch transactions (90 days) ────────────────────────────────────────
+    const fromDate    = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const fromDateStr = fromDate.toISOString().slice(0, 10).replace(/-/g, '');
+    const txns        = [];
+
+    for (const accountId of accounts) {
+      const txnData = await p.evaluate(async ({ baseUrl, accountId, fromDateStr }) => {
+        const url = `${baseUrl}/Titan/gatewayAPI/lastTransactions/${accountId}/Date?IsCategoryDescCode=True&IsTransactionDetails=True&IsEventNames=True&IsFutureTransactionFlag=True&FromDate=${fromDateStr}`;
+        const r   = await fetch(url, { credentials: 'include' });
+        return { status: r.status, body: await r.json().catch(() => null) };
+      }, { baseUrl: BASE_URL, accountId, fromDateStr });
+
+      if (txnData.status !== 200 || !txnData.body) {
+        console.warn(`[discount] account ${accountId}: HTTP ${txnData.status}`);
+        continue;
+      }
+
+      const completed = txnData.body?.CurrentAccountLastTransactions?.OperationEntry || [];
+      const pending   = txnData.body?.CurrentAccountLastTransactions?.FutureTransactionsBlock?.FutureTransactionEntry || [];
+      const all       = [...completed, ...pending];
+      console.log(`[discount] account ${accountId}: ${all.length} transactions`);
+
+      for (const t of all) {
+        const raw  = String(t.OperationDate || '');
+        const yr   = raw.slice(0, 4);
+        const mo   = raw.slice(4, 6);
+        const dy   = raw.slice(6, 8);
+        const date = dy && mo && yr ? `${dy}/${mo}/${yr}` : null;
+
+        const amount   = Math.abs(t.OperationAmount || 0);
+        const isCharge = (t.OperationAmount || 0) < 0;
+
+        txns.push({
+          date,
+          business:        t.OperationDescriptionToDisplay || t.OperationDescription,
+          description:     null,
+          amountILS:       amount,
+          foreignAmount:   null,
+          foreignCurrency: null,
+          currency:        'ILS',
+          currencySymbol:  '₪',
+          type:            null,
+          country:         null,
+          card:            accountId,
+          chargeType:      isCharge ? 'חיוב' : 'זיכוי',
+          confirmation:    `${t.OperationDate}-${t.OperationNumber}-${t.OperationAmount}`,
+        });
+      }
+    }
+
+    await saveCookies(ctx);
+    return txns;
+
+  } finally {
+    await b.close();
+  }
 }
 
 module.exports = { scrapeDiscount };
