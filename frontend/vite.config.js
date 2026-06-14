@@ -6,7 +6,8 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5100,
-    watch: { usePolling: true },   // needed inside Docker
+    allowedHosts: ['bank.pickel.me', 'localhost', '127.0.0.1'],
+    watch: { usePolling: true },
     proxy: {
       '/api': {
         target: 'http://backend:5101',
