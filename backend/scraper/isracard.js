@@ -157,9 +157,7 @@ async function exportMonth(page, { cardSuffix, companyCode, cardStatus, isPartne
   const iBiz          = headers.findIndex(h => String(h).includes('שם בית עסק'));
   const iAmt          = headers.findIndex(h => String(h).includes('סכום עסקה'));
   const iCur          = headers.findIndex(h => String(h).includes('מטבע עסקה'));
-  const iIlsAmt       = headers.findIndex(h => String(h).includes('סכום לחיוב'));
-  const iPaymentNum   = headers.findIndex(h => String(h) === 'מספר תשלום');
-  const iTotalPayments = headers.findIndex(h => String(h).includes('מספר תשלומים'));
+  const iIlsAmt       = headers.findIndex(h => String(h).includes('סכום חיוב'));
 
   const ILS_NAMES = new Set(['₪', 'שקל', 'ILS', 'NIS', 'שקל חדש', '']);
 
@@ -194,9 +192,6 @@ async function exportMonth(page, { cardSuffix, companyCode, cardStatus, isPartne
     const foreignAmount   = !isIls ? txnAmt : null;
     const foreignCurrency = !isIls ? currency : null;
 
-    // Installments
-    const paymentNum    = iPaymentNum    >= 0 ? parseInt(row[iPaymentNum])    || null : null;
-    const totalPayments = iTotalPayments >= 0 ? parseInt(row[iTotalPayments]) || null : null;
 
     txns.push({
       date,
@@ -208,8 +203,6 @@ async function exportMonth(page, { cardSuffix, companyCode, cardStatus, isPartne
       currencySymbol: '₪',
       chargeType:     'זיכוי',
       card:           cardSuffix,
-      paymentNum,
-      totalPayments,
       confirmation:   `${date}-${business.trim().slice(0, 30)}-${txnAmt}`,
       _raw:           {},
     });
