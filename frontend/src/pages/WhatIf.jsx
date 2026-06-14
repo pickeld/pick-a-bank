@@ -81,7 +81,7 @@ export default function WhatIf() {
     }
   })
 
-  const maxVal = Math.max(...months.map(m => Math.abs(m.base), Math.abs(m.scenario)), 1)
+  const maxVal = Math.max(...months.flatMap(m => [Math.abs(m.base), Math.abs(m.scenario)]), 1)
   const fmt = n => {
     const abs = Math.abs(n)
     const str = `₪${Number(abs).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`
