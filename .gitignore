@@ -6,3 +6,5 @@ dist/
 pg_data/
 *.cookies.json
 backend/pw-browsers/
+.discount-cookies.json
+.isracard-cookies.json
