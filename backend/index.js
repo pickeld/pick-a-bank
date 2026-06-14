@@ -54,7 +54,7 @@ app.use('/api/push',         pushRouter);
     const lastScrape = s.last_scrape ? new Date(s.last_scrape) : null;
     if (!lastScrape || (now - lastScrape) / 3600000 >= (s.scrape_interval_hours || 6)) {
       console.log('[cron] triggering scrape');
-      await runScrape(pool, s);
+      await runScrape(pool, s, s.user_id);
     }
   });
 })();

@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
     const yyyy = now.getFullYear();
     const month = req.query.month || `${mm}/${yyyy}`;
     const { rows } = await pool.query(
-      'SELECT * FROM budgets WHERE month=$1 ORDER BY category', [month]
+      'SELECT * FROM budgets WHERE month=$1 AND user_id=$2 ORDER BY category', [month, req.user.sub]
     );
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -41,11 +41,12 @@ router.get('/auto', async (req, res) => {
         FROM transactions
         WHERE source='isracard' AND charge_type='זיכוי'
           AND to_date(date,'DD/MM/YYYY') >= NOW() - INTERVAL '12 months'
+          AND user_id = $1
         GROUP BY COALESCE(category,'other'), to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY')
       ) sub
       GROUP BY COALESCE(category,'other')
       ORDER BY suggested DESC
-    `);
+    `, [req.user.sub]);
 
     // Also get actual spent this month
     const [mm2, yyyy2] = month.split('/');
@@ -53,9 +54,9 @@ router.get('/auto', async (req, res) => {
     const { rows: actual } = await pool.query(`
       SELECT COALESCE(category,'other') as category, COALESCE(SUM(amount_ils),0) as spent
       FROM transactions
-      WHERE source='isracard' AND charge_type='זיכוי' AND date LIKE $1
+      WHERE source='isracard' AND charge_type='זיכוי' AND date LIKE $1 AND user_id=$2
       GROUP BY COALESCE(category,'other')
-    `, [pattern]);
+    `, [pattern, req.user.sub]);
 
     const actualMap = {};
     actual.forEach(r => { actualMap[r.category] = parseFloat(r.spent); });
@@ -78,9 +79,9 @@ router.post('/', async (req, res) => {
     const pool = req.app.locals.pool;
     const { month, category, amount } = req.body;
     await pool.query(
-      `INSERT INTO budgets (month, category, amount) VALUES ($1,$2,$3)
+      `INSERT INTO budgets (month, category, amount, user_id) VALUES ($1,$2,$3,$4)
        ON CONFLICT (month, category) DO UPDATE SET amount=$3`,
-      [month, category, amount]
+      [month, category, amount, req.user.sub]
     );
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -92,9 +93,9 @@ router.post('/bulk', async (req, res) => {
     const { month, budgets } = req.body;
     for (const { category, amount } of budgets) {
       await pool.query(
-        `INSERT INTO budgets (month, category, amount) VALUES ($1,$2,$3)
+        `INSERT INTO budgets (month, category, amount, user_id) VALUES ($1,$2,$3,$4)
          ON CONFLICT (month, category) DO UPDATE SET amount=$3`,
-        [month, category, amount]
+        [month, category, amount, req.user.sub]
       );
     }
     res.json({ ok: true });
@@ -104,8 +105,8 @@ router.post('/bulk', async (req, res) => {
 router.delete('/:month/:category', async (req, res) => {
   try {
     await req.app.locals.pool.query(
-      'DELETE FROM budgets WHERE month=$1 AND category=$2',
-      [req.params.month, req.params.category]
+      'DELETE FROM budgets WHERE month=$1 AND category=$2 AND user_id=$3',
+      [req.params.month, req.params.category, req.user.sub]
     );
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }

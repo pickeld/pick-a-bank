@@ -4,7 +4,8 @@ router.post('/subscribe', async (req, res) => {
   try {
     const { subscription } = req.body;
     const pool = req.app.locals.pool;
-    const { rows } = await pool.query('SELECT id FROM settings LIMIT 1');
+    const userId = req.user.sub;
+    const { rows } = await pool.query('SELECT id FROM settings WHERE user_id=$1 LIMIT 1', [userId]);
     if (!rows.length) return res.status(404).json({ error: 'no settings' });
     await pool.query(
       'UPDATE settings SET push_subscription=$1, notify_new_transactions=true WHERE id=$2',
@@ -17,7 +18,8 @@ router.post('/subscribe', async (req, res) => {
 router.delete('/unsubscribe', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    await pool.query('UPDATE settings SET push_subscription=NULL WHERE id=(SELECT id FROM settings LIMIT 1)');
+    const userId = req.user.sub;
+    await pool.query('UPDATE settings SET push_subscription=NULL WHERE user_id=$1', [userId]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -25,7 +27,8 @@ router.delete('/unsubscribe', async (req, res) => {
 router.post('/test', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const { rows } = await pool.query('SELECT push_subscription FROM settings LIMIT 1');
+    const userId = req.user.sub;
+    const { rows } = await pool.query('SELECT push_subscription FROM settings WHERE user_id=$1 LIMIT 1', [userId]);
     if (!rows[0]?.push_subscription) return res.status(400).json({ error: 'no subscription' });
     res.json({ ok: true, message: 'Test notification sent (VAPID not configured — install web-push to enable)' });
   } catch (e) { res.status(500).json({ error: e.message }); }

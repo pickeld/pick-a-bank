@@ -2,7 +2,7 @@ const { scrapeIsracard } = require('./isracard');
 const { scrapeDiscount } = require('./discount');
 const { categorize } = require('../lib/categorize');
 
-async function upsertTransactions(pool, source, txns) {
+async function upsertTransactions(pool, source, txns, userId) {
   let inserted = 0;
   for (const t of txns) {
     try {
@@ -22,8 +22,8 @@ async function upsertTransactions(pool, source, txns) {
            (source, date, business, description, amount_ils, ils_amount,
             foreign_amount, foreign_currency,
             currency, currency_symbol, type, country, card, charge_type, confirmation, raw,
-            category, payment_num, total_payments)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+            category, payment_num, total_payments, user_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
          ON CONFLICT (source, confirmation, date, business, amount_ils) DO NOTHING`,
         [
           source,
@@ -45,6 +45,7 @@ async function upsertTransactions(pool, source, txns) {
           category,
           t.paymentNum    ?? null,
           t.totalPayments ?? null,
+          userId || null,
         ]
       );
       inserted++;
@@ -53,7 +54,7 @@ async function upsertTransactions(pool, source, txns) {
   return inserted;
 }
 
-async function runScrape(pool, settings) {
+async function runScrape(pool, settings, userId) {
   console.log('[scraper] starting...');
   const results = { isracard: 0, discount: 0, errors: [] };
 
@@ -65,7 +66,7 @@ async function runScrape(pool, settings) {
         card6Digits: settings.isracard_card6,
         password: settings.isracard_password,
       });
-      results.isracard = await upsertTransactions(pool, 'isracard', txns);
+      results.isracard = await upsertTransactions(pool, 'isracard', txns, userId);
       console.log(`[scraper] Isracard: ${results.isracard} new transactions`);
     } catch (e) {
       console.error('[scraper] Isracard error:', e.message);
@@ -81,7 +82,7 @@ async function runScrape(pool, settings) {
         password: settings.discount_password,
         num: settings.discount_num,
       });
-      results.discount = await upsertTransactions(pool, 'discount', txns);
+      results.discount = await upsertTransactions(pool, 'discount', txns, userId);
       console.log(`[scraper] Discount: ${results.discount} new transactions`);
     } catch (e) {
       console.error('[scraper] Discount error:', e.message);
@@ -89,7 +90,11 @@ async function runScrape(pool, settings) {
     }
   }
 
-  await pool.query('UPDATE settings SET last_scrape = NOW() WHERE id = (SELECT id FROM settings LIMIT 1)');
+  if (userId) {
+    await pool.query('UPDATE settings SET last_scrape = NOW() WHERE user_id=$1', [userId]);
+  } else {
+    await pool.query('UPDATE settings SET last_scrape = NOW() WHERE id = (SELECT id FROM settings LIMIT 1)');
+  }
   console.log('[scraper] done:', results);
   return results;
 }

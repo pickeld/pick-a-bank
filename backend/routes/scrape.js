@@ -7,7 +7,8 @@ let scrapeStatus = { running: false, lastRun: null, lastError: null };
 // GET /api/scrape/status
 router.get('/status', async (req, res) => {
   const pool = req.app.locals.pool;
-  const { rows } = await pool.query('SELECT last_scrape FROM settings LIMIT 1').catch(() => ({ rows: [] }));
+  const userId = req.user?.sub;
+  const { rows } = await pool.query('SELECT last_scrape FROM settings WHERE user_id=$1 LIMIT 1', [userId]).catch(() => ({ rows: [] }));
   res.json({ ...scrapeStatus, lastScrape: rows[0]?.last_scrape || null });
 });
 
@@ -15,13 +16,14 @@ router.get('/status', async (req, res) => {
 router.post('/trigger', async (req, res) => {
   if (scrapeStatus.running) return res.json({ ok: false, message: 'Already running' });
   const pool = req.app.locals.pool;
-  const { rows } = await pool.query('SELECT * FROM settings LIMIT 1');
+  const userId = req.user.sub;
+  const { rows } = await pool.query('SELECT * FROM settings WHERE user_id=$1 LIMIT 1', [userId]);
   if (!rows.length) return res.status(400).json({ error: 'No settings configured' });
 
   scrapeStatus.running = true;
   res.json({ ok: true, message: 'Scrape started' });
 
-  runScrape(pool, rows[0])
+  runScrape(pool, rows[0], userId)
     .then(() => { scrapeStatus.running = false; scrapeStatus.lastRun = new Date(); scrapeStatus.lastError = null; })
     .catch(e => { scrapeStatus.running = false; scrapeStatus.lastError = e.message; console.error('[scrape] error:', e.message); });
 });
@@ -81,7 +83,8 @@ router.post('/upload', async (req, res) => {
       }
     }
 
-    await pool.query('UPDATE settings SET last_scrape = NOW() WHERE id = (SELECT id FROM settings LIMIT 1)');
+    const uid = req.user?.sub;
+    if (uid) await pool.query('UPDATE settings SET last_scrape = NOW() WHERE user_id=$1', [uid]);
 
     console.log(`[upload] ${source}: ${inserted}/${transactions.length} new transactions`);
     res.json({ ok: true, inserted, total: transactions.length });
