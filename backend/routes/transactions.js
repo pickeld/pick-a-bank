@@ -1,15 +1,16 @@
 const router = require('express').Router();
 const { categorize } = require('../lib/categorize');
 
-const ISRACARD_SPEND = `source='isracard' AND charge_type='זיכוי'`;
+const isracard_spend = (uid) => `source='isracard' AND charge_type='זיכוי' AND user_id='${uid}'`;
 
 router.get('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const { source = 'all', search = '', category = '', from = '', to = '', billing_cycle = '', page = 1, limit = 50 } = req.query;
 
-    const conditions = [];
-    const params = [];
+    const userId = req.user.sub;
+    const conditions = [`user_id = $1`];
+    const params = [userId];
 
     if (source !== 'all') { params.push(source); conditions.push(`source = $${params.length}`); }
     if (search) { params.push(`%${search}%`); conditions.push(`business ILIKE $${params.length}`); }
@@ -19,9 +20,9 @@ router.get('/', async (req, res) => {
       params.push(category); conditions.push(`category = $${params.length}`);
     }
     if (billing_cycle === 'next') {
-      conditions.push(`to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') FROM transactions WHERE source='isracard' ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1)`);
+      conditions.push(`to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') FROM transactions WHERE source='isracard' AND user_id=$1 ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1)`);
     } else if (billing_cycle === 'prev') {
-      conditions.push(`to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') FROM transactions WHERE source='isracard' AND to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') != (SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') FROM transactions WHERE source='isracard' ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1) ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1) AND source='isracard'`);
+      conditions.push(`to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') FROM transactions WHERE source='isracard' AND to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') != (SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') FROM transactions WHERE source='isracard' AND user_id=$1 ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1) ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1) AND source='isracard'`);
     } else {
       if (from) { params.push(from); conditions.push(`to_date(date,'DD/MM/YYYY') >= to_date($\${params.length},'DD/MM/YYYY')`); }
       if (to)   { params.push(to);   conditions.push(`to_date(date,'DD/MM/YYYY') <= to_date($\${params.length},'DD/MM/YYYY')`); }
@@ -49,7 +50,8 @@ router.patch('/:id', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const { category } = req.body;
-    await pool.query(`UPDATE transactions SET category = $1, category_locked = true WHERE id = $2`, [category || null, req.params.id]);
+    const userId = req.user.sub;
+    await pool.query(`UPDATE transactions SET category = $1, category_locked = true WHERE id = $2 AND user_id = $3`, [category || null, req.params.id]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -57,6 +59,8 @@ router.patch('/:id', async (req, res) => {
 router.get('/categories', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
+    const userId = req.user.sub;
+    const ISRACARD_SPEND = isracard_spend(userId);
     const { month } = req.query;
     const now = new Date();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -75,6 +79,8 @@ router.get('/categories', async (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
+    const userId = req.user.sub;
+    const ISRACARD_SPEND = isracard_spend(userId);
     const now  = new Date();
 
     const mm      = String(now.getMonth() + 1).padStart(2, '0');
@@ -97,7 +103,7 @@ router.get('/stats', async (req, res) => {
         WHERE ${ISRACARD_SPEND}
           AND to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (
             SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY')
-            FROM transactions WHERE source='isracard'
+            FROM transactions WHERE source='isracard' AND user_id='${userId}'
             ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1
           )
       `),
@@ -108,14 +114,14 @@ router.get('/stats', async (req, res) => {
         WHERE ${ISRACARD_SPEND}
           AND to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (
             SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY')
-            FROM transactions WHERE source='isracard'
+            FROM transactions WHERE source='isracard' AND user_id='${userId}'
             ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1
             OFFSET 0
           )
           -- second distinct month
           AND to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') != (
             SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY')
-            FROM transactions WHERE source='isracard'
+            FROM transactions WHERE source='isracard' AND user_id='${userId}'
             ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1
           )
       `),
@@ -140,7 +146,7 @@ router.get('/stats', async (req, res) => {
         WHERE ${ISRACARD_SPEND}
           AND to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (
             SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY')
-            FROM transactions WHERE source='isracard'
+            FROM transactions WHERE source='isracard' AND user_id='${userId}'
             ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1
           )
         GROUP BY COALESCE(category,'other') ORDER BY total DESC
@@ -153,7 +159,7 @@ router.get('/stats', async (req, res) => {
         WHERE ${ISRACARD_SPEND}
           AND to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY') = (
             SELECT to_char(to_date(date,'DD/MM/YYYY'),'MM/YYYY')
-            FROM transactions WHERE source='isracard'
+            FROM transactions WHERE source='isracard' AND user_id='${userId}'
             ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1
           )
       `),

@@ -1,9 +1,11 @@
 const router = require('express').Router();
 
-// GET /api/settings  (masked passwords — for UI)
 router.get('/', async (req, res) => {
   try {
-    const { rows } = await req.app.locals.pool.query('SELECT * FROM settings LIMIT 1');
+    const userId = req.user.sub;
+    const { rows } = await req.app.locals.pool.query(
+      'SELECT * FROM settings WHERE user_id=$1 LIMIT 1', [userId]
+    );
     if (!rows.length) return res.json(null);
     const s = rows[0];
     res.json({
@@ -11,41 +13,44 @@ router.get('/', async (req, res) => {
       isracard_password: s.isracard_password ? '••••••••' : '',
       discount_password: s.discount_password ? '••••••••' : '',
     });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/settings/credentials  (real passwords — for local scraper)
 router.get('/credentials', async (req, res) => {
   try {
+    const userId = req.user.sub;
     const { rows } = await req.app.locals.pool.query(
-      'SELECT isracard_id, isracard_card6, isracard_password, discount_id, discount_password, discount_num FROM settings LIMIT 1'
+      'SELECT isracard_id, isracard_card6, isracard_password, discount_id, discount_password, discount_num FROM settings WHERE user_id=$1 LIMIT 1',
+      [userId]
     );
     if (!rows.length) return res.status(404).json({ error: 'No settings found' });
     res.json(rows[0]);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/settings  (upsert)
 router.post('/', async (req, res) => {
   try {
+    const userId = req.user.sub;
     const {
       isracard_id, isracard_card6, isracard_password,
       discount_id, discount_password, discount_num,
-      scrape_interval_hours,
+      scrape_interval_hours, openai_key,
+      notify_new_transactions, notify_daily_digest,
     } = req.body;
 
     const pool = req.app.locals.pool;
-    const { rows: existing } = await pool.query('SELECT id FROM settings LIMIT 1');
+    const { rows: existing } = await pool.query(
+      'SELECT id FROM settings WHERE user_id=$1 LIMIT 1', [userId]
+    );
 
     if (existing.length) {
       const updates = {
         isracard_id, isracard_card6,
         discount_id, discount_num,
         scrape_interval_hours: scrape_interval_hours || 6,
+        openai_key: openai_key || null,
+        notify_new_transactions: !!notify_new_transactions,
+        notify_daily_digest: !!notify_daily_digest,
         updated_at: new Date(),
       };
       if (isracard_password && isracard_password !== '••••••••') updates.isracard_password = isracard_password;
@@ -60,15 +65,18 @@ router.post('/', async (req, res) => {
       );
     } else {
       await pool.query(
-        `INSERT INTO settings (isracard_id, isracard_card6, isracard_password, discount_id, discount_password, discount_num, scrape_interval_hours)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [isracard_id, isracard_card6, isracard_password, discount_id, discount_password, discount_num, scrape_interval_hours || 6]
+        `INSERT INTO settings
+           (user_id, isracard_id, isracard_card6, isracard_password,
+            discount_id, discount_password, discount_num, scrape_interval_hours,
+            openai_key, notify_new_transactions, notify_daily_digest)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [userId, isracard_id, isracard_card6, isracard_password,
+         discount_id, discount_password, discount_num, scrape_interval_hours || 6,
+         openai_key || null, !!notify_new_transactions, !!notify_daily_digest]
       );
     }
     res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;
