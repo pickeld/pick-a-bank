@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import AuthGate from './components/AuthGate'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
@@ -10,24 +11,24 @@ import WhatIf from './pages/WhatIf'
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <div className="flex min-h-screen bg-gray-950 flex-col md:flex-row">
-        {/* Side sidebar — desktop only */}
-        <Sidebar />
-        {/* Main content — add bottom padding on mobile for tab bar */}
-        <main className="flex-1 overflow-auto pb-20 md:pb-0">
-          <Routes>
-            <Route path="/"             element={<Dashboard />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/analytics"   element={<Analytics />} />
-            <Route path="/budget"      element={<Budget />} />
-            <Route path="/whatif"      element={<WhatIf />} />
-            <Route path="/import"      element={<Import />} />
-            <Route path="/settings"    element={<Settings />} />
-            <Route path="*"            element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-      </div>
-    </BrowserRouter>
+    <AuthGate>
+      <BrowserRouter>
+        <div className="flex min-h-screen bg-gray-950 flex-col md:flex-row">
+          <Sidebar />
+          <main className="flex-1 overflow-auto pb-20 md:pb-0">
+            <Routes>
+              <Route path="/"             element={<Dashboard />} />
+              <Route path="/transactions" element={<Transactions />} />
+              <Route path="/analytics"   element={<Analytics />} />
+              <Route path="/budget"      element={<Budget />} />
+              <Route path="/whatif"      element={<WhatIf />} />
+              <Route path="/import"      element={<Import />} />
+              <Route path="/settings"    element={<Settings />} />
+              <Route path="*"            element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+        </div>
+      </BrowserRouter>
+    </AuthGate>
   )
 }

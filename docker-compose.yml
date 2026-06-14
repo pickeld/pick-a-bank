@@ -43,6 +43,11 @@ services:
       - CORS_ORIGIN=http://localhost:5100
       - PLAYWRIGHT_BROWSERS_PATH=/app/pw-browsers
       - MOZ_DISABLE_CONTENT_SANDBOX=1
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - JWT_SECRET=${JWT_SECRET}
     volumes:
       - ./backend:/app
       - /app/node_modules
