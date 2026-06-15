@@ -1,6 +1,26 @@
 import { useEffect, useState } from 'react'
 import api from '../api/client'
-import { Save, Eye, EyeOff, CheckCircle, AlertCircle, Bell, BellOff, Key, CreditCard, Trash2, Send, Clock } from 'lucide-react'
+import { Save, Eye, EyeOff, CheckCircle, AlertCircle, Bell, BellOff, Key, CreditCard, Trash2, Send, Clock, Plus, Building2 } from 'lucide-react'
+
+const BANK_REGISTRY = [
+  { company: 'hapoalim',       name: 'בנק הפועלים',        fields: [{ key: 'userCode', label: 'קוד משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'leumi',          name: 'בנק לאומי',           fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'mizrahi',        name: 'בנק מזרחי טפחות',    fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'discount',       name: 'בנק דיסקונט',         fields: [{ key: 'id', label: 'תעודת זהות' }, { key: 'password', label: 'סיסמה', type: 'password' }, { key: 'num', label: 'קוד זיהוי' }] },
+  { company: 'mercantile',     name: 'בנק מרקנטיל',        fields: [{ key: 'id', label: 'תעודת זהות' }, { key: 'password', label: 'סיסמה', type: 'password' }, { key: 'num', label: 'קוד זיהוי' }] },
+  { company: 'otsarHahayal',   name: 'בנק אוצר החייל',     fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'beinleumi',      name: 'הבנק הבינלאומי',     fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'massad',         name: 'בנק מסד',             fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'yahav',          name: 'בנק יהב',             fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'nationalID', label: 'תעודת זהות' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'union',          name: 'יובנק',               fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'isracard',       name: 'ישראכרט',             fields: [{ key: 'id', label: 'תעודת זהות' }, { key: 'card6Digits', label: '6 ספרות כרטיס' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'amex',           name: 'אמריקן אקספרס',      fields: [{ key: 'id', label: 'תעודת זהות' }, { key: 'card6Digits', label: '6 ספרות כרטיס' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'visaCal',        name: 'ויזה כאל',            fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'max',            name: 'מקס',                 fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'beyahadBishvilha', name: 'ביחד בשבילה',      fields: [{ key: 'id', label: 'תעודת זהות' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'behatsdaa',      name: 'בהצדעה',              fields: [{ key: 'id', label: 'תעודת זהות' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+  { company: 'pagi',           name: 'פאגי',                fields: [{ key: 'username', label: 'שם משתמש' }, { key: 'password', label: 'סיסמה', type: 'password' }] },
+]
 
 const TIMEZONES = [
   'Asia/Jerusalem',
@@ -67,12 +87,26 @@ export default function Settings() {
     notify_daily_digest: false,
     digest_interval_hours: 24,
   })
+  const [bankAccounts, setBankAccounts] = useState([])
   const [toast, setToast]         = useState(null)
   const [saving, setSaving]       = useState(false)
   const [cards, setCards]         = useState([])
   const [cardNames, setCardNames] = useState({})
   const [devices, setDevices]     = useState([])
   const [testingPush, setTestingPush] = useState(null)
+
+  const addBankAccount = () => {
+    const company = BANK_REGISTRY[0].company
+    setBankAccounts(a => [...a, { company, credentials: {}, enabled: true }])
+  }
+
+  const updateBankAccount = (idx, patch) => {
+    setBankAccounts(a => a.map((item, i) => i === idx ? { ...item, ...patch } : item))
+  }
+
+  const removeBankAccount = (idx) => {
+    setBankAccounts(a => a.filter((_, i) => i !== idx))
+  }
 
   const showToast = (ok, msg) => {
     setToast({ ok, msg })
@@ -84,7 +118,10 @@ export default function Settings() {
 
   useEffect(() => {
     api.get('/settings').then(r => {
-      if (r.data) setForm(f => ({ ...f, ...r.data }))
+      if (r.data) {
+        setForm(f => ({ ...f, ...r.data }))
+        setBankAccounts(r.data.bank_accounts || [])
+      }
     }).catch(() => {})
     api.get('/cards/owners').then(r => {
       const m = {}
@@ -107,7 +144,7 @@ export default function Settings() {
     e.preventDefault()
     setSaving(true)
     try {
-      await api.post('/settings', form)
+      await api.post('/settings', { ...form, bank_accounts: bankAccounts })
       showToast(true, 'הגדרות נשמרו בהצלחה ✓')
     } catch { showToast(false, 'שגיאה בשמירת ההגדרות') }
     setSaving(false)
@@ -213,6 +250,51 @@ export default function Settings() {
             <Field label="קוד זיהוי" name="discount_num" value={form.discount_num} onChange={onChange} placeholder="123" />
           </div>
           <Field label="סיסמה" name="discount_password" value={form.discount_password} onChange={onChange} type="password" placeholder="הסיסמה לאינטרנט בנקינג" />
+        </Section>
+
+        {/* Additional bank accounts */}
+        <Section title="חשבונות בנק נוספים" badge="בנקים" badgeColor="blue">
+          <p className="text-xs text-gray-500">הוסף חשבונות בנק וכרטיסי אשראי נוספים לסריקה אוטומטית</p>
+          <div className="space-y-4">
+            {bankAccounts.map((acct, idx) => {
+              const reg = BANK_REGISTRY.find(b => b.company === acct.company) || BANK_REGISTRY[0]
+              return (
+                <div key={idx} className="bg-gray-900 rounded-xl p-4 space-y-3 border border-gray-700">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <select value={acct.company}
+                      onChange={e => updateBankAccount(idx, { company: e.target.value, credentials: {} })}
+                      className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                      {BANK_REGISTRY.map(b => <option key={b.company} value={b.company}>{b.name}</option>)}
+                    </select>
+                    <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                      <input type="checkbox" checked={acct.enabled}
+                        onChange={e => updateBankAccount(idx, { enabled: e.target.checked })}
+                        className="w-4 h-4 accent-blue-500" />
+                      <span className="text-xs text-gray-400">פעיל</span>
+                    </label>
+                    <button type="button" onClick={() => removeBankAccount(idx)}
+                      className="text-gray-600 hover:text-red-400 transition-colors p-1 shrink-0">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {reg.fields.map(f => (
+                      <div key={f.key}>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">{f.label}</label>
+                        <input type={f.type || 'text'} value={acct.credentials[f.key] || ''}
+                          onChange={e => updateBankAccount(idx, { credentials: { ...acct.credentials, [f.key]: e.target.value } })}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+            <button type="button" onClick={addBankAccount}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-600/30 rounded-lg text-sm transition-colors">
+              <Plus size={14} /> הוסף חשבון
+            </button>
+          </div>
         </Section>
 
         {/* Scrape time */}
