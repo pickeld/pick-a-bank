@@ -112,7 +112,7 @@ export default function Analytics() {
   useEffect(() => { load() }, [])
 
   if (loading) return (
-    <div className="p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-white">ניתוח פיננסי 📊</h1>
       </div>
@@ -123,7 +123,7 @@ export default function Analytics() {
   )
 
   if (error) return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <div className="bg-red-900/20 border border-red-800 rounded-xl p-6 text-center">
         <AlertTriangle className="mx-auto mb-2 text-red-400" size={28} />
         <p className="text-red-400 font-medium">שגיאה בטעינת הנתונים</p>
@@ -147,7 +147,7 @@ export default function Analytics() {
   )
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -357,7 +357,7 @@ export default function Analytics() {
 
       {/* ── Category Trend Detail ── */}
       <Section title="ניתוח קטגוריות — השוואה חודשית" icon={<TrendingUp size={15} />}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {trend.byCategory
             .filter(c => c.thisMonth > 0 || c.avg3Month > 0)
             .sort((a, b) => b.thisMonth - a.thisMonth)

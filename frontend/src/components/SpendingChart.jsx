@@ -3,10 +3,11 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianG
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs">
+    <div className="overflow-x-auto"><div className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs">
       <p className="text-gray-400">{label}</p>
       <p className="text-blue-400 font-bold">₪{Number(payload[0].value).toLocaleString('he-IL')}</p>
     </div>
+  </div>
   )
 }
 

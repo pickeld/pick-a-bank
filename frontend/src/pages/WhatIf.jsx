@@ -104,7 +104,7 @@ export default function WhatIf() {
       {/* Base cash flow summary */}
       <div className="bg-gray-800 rounded-xl p-4 md:p-5">
         <h2 className="text-sm font-semibold text-gray-400 mb-3">בסיס חודשי (ללא שינויים)</h2>
-        <div className="grid grid-cols-3 gap-2 md:gap-4 text-center">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-4 text-center">
           <div>
             <p className="text-xs text-gray-500">משכורת</p>
             <p className="text-lg font-bold text-green-400">{fmt(base?.salary || 0)}</p>
