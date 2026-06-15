@@ -80,7 +80,7 @@ app.use('/api/push',         pushRouter);
   });
 
   // Digest cron — every minute, check if any user is due for a digest notification
-  cron.schedule('* * * * *', async () => {
+  cron.schedule('0 * * * *', async () => {
     try {
       const { rows } = await pool.query(
         `SELECT s.*, p.id as push_id, p.device_name, p.endpoint
