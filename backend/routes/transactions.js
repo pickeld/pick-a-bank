@@ -51,7 +51,36 @@ router.patch('/:id', async (req, res) => {
     const pool = req.app.locals.pool;
     const { category } = req.body;
     const userId = req.user.sub;
-    await pool.query(`UPDATE transactions SET category = $1, category_locked = true WHERE id = $2 AND user_id = $3`, [category || null, req.params.id]);
+    // Get the business name for this transaction
+    const { rows: txnRows } = await pool.query(
+      'SELECT business FROM transactions WHERE id=$1 AND user_id=$2', [req.params.id, userId]
+    );
+    await pool.query(`UPDATE transactions SET category = $1, category_locked = true WHERE id = $2 AND user_id = $3`, [category || null, req.params.id, userId]);
+
+    if (txnRows.length && txnRows[0].business && category) {
+      const business = txnRows[0].business.trim().toLowerCase();
+      // Save/update rule for this business name
+      await pool.query(
+        `INSERT INTO category_rules (user_id, pattern, category, priority)
+         VALUES ($1, $2, $3, 10)
+         ON CONFLICT DO NOTHING`,
+        [userId, business, category]
+      );
+      // Also update all other unlocked transactions from the same business
+      await pool.query(
+        `UPDATE transactions SET category = $1
+         WHERE user_id = $2 AND LOWER(TRIM(business)) = $3 AND category_locked IS NOT TRUE AND id != $4`,
+        [category, userId, business, req.params.id]
+      );
+    } else if (txnRows.length && txnRows[0].business && !category) {
+      // User removed category — delete the rule
+      const business = txnRows[0].business.trim().toLowerCase();
+      await pool.query(
+        'DELETE FROM category_rules WHERE user_id=$1 AND pattern=$2',
+        [userId, business]
+      );
+    }
+
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

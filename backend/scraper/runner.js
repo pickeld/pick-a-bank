@@ -4,6 +4,16 @@ const { scrapeGeneric } = require('./generic');
 const { categorize } = require('../lib/categorize');
 
 async function upsertTransactions(pool, source, txns, userId) {
+  // Load user's custom category rules
+  let userRules = [];
+  if (userId) {
+    const { rows: ruleRows } = await pool.query(
+      'SELECT pattern, category FROM category_rules WHERE user_id=$1 ORDER BY priority DESC, id ASC',
+      [userId]
+    );
+    userRules = ruleRows;
+  }
+
   let inserted = 0;
   for (const t of txns) {
     try {
@@ -16,7 +26,7 @@ async function upsertTransactions(pool, source, txns, userId) {
         `${t.date || t.purchaseDate}-${(t.business || t.businessName || '').trim()}-${amountIls}`;
 
       const business = t.business || t.businessName;
-      const category = categorize(business);
+      const category = categorize(business, userRules);
 
       await pool.query(
         `INSERT INTO transactions
