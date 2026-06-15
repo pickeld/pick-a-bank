@@ -139,28 +139,33 @@ export default function Budget() {
             const over  = delta < 0
             return (
               <div key={row.category} className="px-4 py-3 hover:bg-gray-700/20 transition-colors">
-                <span className="col-span-3 flex items-center gap-2 text-sm">
-                  <span>{meta.emoji}</span>
-                  <span className="text-gray-300">{meta.label}</span>
-                </span>
-                <span className="col-span-3">
-                  <input
-                    type="number" min="0" step="100"
-                    value={row.budget || ''}
-                    onChange={e => setRowBudget(row.category, e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
-                  />
-                </span>
-                <span className="col-span-2 text-sm text-gray-300">{fmt(row.actual)}</span>
-                <span className="col-span-3 pr-2">
+                {/* Mobile */}
+                <div className="md:hidden space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm"><span>{meta.emoji}</span><span className="text-gray-300">{meta.label}</span></span>
+                    <span className={`text-xs font-semibold ${over ? 'text-red-400' : 'text-emerald-400'}`}>{over ? `-${fmt(-delta)}` : `+${fmt(delta)}`}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input type="number" min="0" step="100" value={row.budget || ''} onChange={e => setRowBudget(row.category, e.target.value)}
+                      className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
+                    <span className="text-xs text-gray-400 shrink-0">{fmt(row.actual)} בפועל</span>
+                  </div>
                   <ProgressBar actual={row.actual} budget={row.budget} />
-                  <span className="text-xs text-gray-500 mt-0.5 block">
-                    {row.budget > 0 ? `${Math.round((row.actual / row.budget) * 100)}%` : '—'}
+                </div>
+                {/* Desktop */}
+                <div className="hidden md:grid grid-cols-12 items-center gap-y-0.5">
+                  <span className="col-span-3 flex items-center gap-2 text-sm"><span>{meta.emoji}</span><span className="text-gray-300">{meta.label}</span></span>
+                  <span className="col-span-3">
+                    <input type="number" min="0" step="100" value={row.budget || ''} onChange={e => setRowBudget(row.category, e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
                   </span>
-                </span>
-                <span className={`col-span-1 text-xs font-semibold tabular-nums ${over ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {over ? `-${fmt(-delta)}` : `+${fmt(delta)}`}
-                </span>
+                  <span className="col-span-2 text-sm text-gray-300">{fmt(row.actual)}</span>
+                  <span className="col-span-3 pr-2">
+                    <ProgressBar actual={row.actual} budget={row.budget} />
+                    <span className="text-xs text-gray-500 mt-0.5 block">{row.budget > 0 ? `${Math.round((row.actual / row.budget) * 100)}%` : '—'}</span>
+                  </span>
+                  <span className={`col-span-1 text-xs font-semibold tabular-nums ${over ? 'text-red-400' : 'text-emerald-400'}`}>{over ? `-${fmt(-delta)}` : `+${fmt(delta)}`}</span>
+                </div>
               </div>
             )
           })}
