@@ -125,15 +125,14 @@ export default function Settings() {
       const perm = await Notification.requestPermission()
       if (perm !== 'granted') { showToast(false, 'ההרשאה נדחתה'); return }
 
-      // Ask for device name
       const name = window.prompt('שם המכשיר (לזיהוי):', detectDeviceName()) || detectDeviceName()
 
-      const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBnS6ECznQzaEEjqOzTU__NCIO8',
+      // Use a stable browser fingerprint as the endpoint (no service worker needed)
+      const endpoint = `browser:${navigator.userAgent.slice(0,40).replace(/\s/g,'_')}_${Date.now()}`
+      await api.post('/push/subscribe', {
+        subscription: { endpoint },
+        device_name: name,
       })
-      await api.post('/push/subscribe', { subscription: sub, device_name: name })
       showToast(true, `"${name}" נרשם להתראות ✓`)
       loadDevices()
     } catch (e) { showToast(false, 'שגיאה: ' + e.message) }
@@ -298,7 +297,7 @@ export default function Settings() {
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm transition-colors">
                 <Bell size={14} /> הוסף מכשיר
               </button>
-              {devices.length > 0 && (
+              {Notification.permission === 'granted' && (
                 <button type="button" onClick={testNotification} disabled={testingPush}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 border border-purple-600/30 rounded-lg text-sm transition-colors disabled:opacity-50">
                   <Send size={14} /> {testingPush ? 'שולח...' : 'שלח התראת בדיקה'}

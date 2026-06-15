@@ -1,5 +1,7 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, Settings, Landmark, BarChart2, Upload, PiggyBank, Sparkles } from 'lucide-react'
+import { LayoutDashboard, List, Settings, Landmark, BarChart2, Upload, PiggyBank, Sparkles, LogOut } from 'lucide-react'
+import { useAuth } from './AuthGate'
+import { logout } from '../utils/auth'
 
 const links = [
   { to: '/',             icon: LayoutDashboard, label: 'דשבורד'  },
@@ -11,10 +13,36 @@ const links = [
   { to: '/settings',     icon: Settings,         label: 'הגדרות'  },
 ]
 
-const activeClass = 'bg-blue-600 text-white'
+const activeClass  = 'bg-blue-600 text-white'
 const inactiveClass = 'text-gray-400 hover:bg-gray-800 hover:text-white'
 
+function UserFooter({ user }) {
+  return (
+    <div className="px-3 py-3 border-t border-gray-800">
+      <div className="flex items-center gap-2 mb-2">
+        {user?.avatar
+          ? <img src={user.avatar} alt="" className="w-7 h-7 rounded-full shrink-0" />
+          : <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {(user?.name || '?')[0].toUpperCase()}
+            </div>
+        }
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-white font-medium truncate">{user?.name || user?.email}</p>
+          <p className="text-[10px] text-gray-500 truncate">{user?.email}</p>
+        </div>
+      </div>
+      <button onClick={logout}
+        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-red-400 transition-colors">
+        <LogOut size={13} />
+        יציאה
+      </button>
+    </div>
+  )
+}
+
 export default function Sidebar() {
+  const { user } = useAuth()
+
   return (
     <>
       {/* ── Desktop: vertical sidebar ──────────────────────────────── */}
@@ -37,13 +65,11 @@ export default function Sidebar() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-5 py-4 border-t border-gray-800 text-xs text-gray-600">
-          v1.0 · pick-a-bank
-        </div>
+        <UserFooter user={user} />
       </aside>
 
       {/* ── Mobile: bottom tab bar ──────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-gray-900 border-t border-gray-800 flex items-center justify-around px-1 py-2 safe-area-inset-bottom">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-gray-900 border-t border-gray-800 flex items-center justify-around px-1 py-2">
         {links.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} end={to === '/'}
             className={({ isActive }) =>
@@ -55,6 +81,15 @@ export default function Sidebar() {
             <span className="text-[10px] leading-tight truncate w-full text-center">{label}</span>
           </NavLink>
         ))}
+        {/* Logout on mobile — tap avatar */}
+        <button onClick={logout}
+          className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors min-w-0 flex-1 text-gray-500 hover:text-red-400">
+          {user?.avatar
+            ? <img src={user.avatar} alt="" className="w-5 h-5 rounded-full" />
+            : <LogOut size={20} />
+          }
+          <span className="text-[10px] leading-tight">יציאה</span>
+        </button>
       </nav>
     </>
   )
