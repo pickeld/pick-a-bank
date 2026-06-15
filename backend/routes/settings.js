@@ -6,7 +6,7 @@ router.get('/', async (req, res) => {
     const { rows } = await req.app.locals.pool.query(
       'SELECT * FROM settings WHERE user_id=$1 LIMIT 1', [userId]
     );
-    if (!rows.length) return res.json(null);
+    if (!rows.length) return res.json({ scrape_time: '08:00', scrape_timezone: 'Asia/Jerusalem', scrape_interval_hours: 6, notify_new_transactions: false, notify_daily_digest: false, digest_interval_hours: 24 });
     const s = rows[0];
     res.json({
       ...s,

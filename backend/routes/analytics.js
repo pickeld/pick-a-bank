@@ -30,10 +30,13 @@ router.get('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
 
+    const userId = req.user.sub;
     const { rows: all } = await pool.query(
       `SELECT id, source, date, business, amount_ils, charge_type, category, currency, country, scraped_at
        FROM transactions
-       ORDER BY to_date(date,'DD/MM/YYYY') ASC, id ASC`
+       WHERE user_id = $1
+       ORDER BY to_date(date,'DD/MM/YYYY') ASC, id ASC`,
+      [userId]
     );
 
     const now = new Date();

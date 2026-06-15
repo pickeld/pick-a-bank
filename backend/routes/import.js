@@ -217,7 +217,7 @@ async function upsert(pool, source, txns) {
             foreign_amount, foreign_currency,
             currency, currency_symbol, card, charge_type, confirmation,
             category, raw)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          ON CONFLICT (source, confirmation, date, business, amount_ils) DO NOTHING
          RETURNING id`,
         [

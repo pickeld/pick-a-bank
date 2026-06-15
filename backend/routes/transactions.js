@@ -136,7 +136,7 @@ router.get('/stats', async (req, res) => {
         SELECT date, SUM(amount_ils) as total
         FROM transactions
         WHERE to_date(date,'DD/MM/YYYY') >= NOW() - INTERVAL '30 days'
-          AND ${ISRACARD_SPEND}
+          AND ${ISRACARD_SPEND} AND user_id='${userId}'
         GROUP BY date ORDER BY to_date(date,'DD/MM/YYYY') ASC
       `),
       // Category breakdown for current accumulating cycle
@@ -166,19 +166,19 @@ router.get('/stats', async (req, res) => {
       // Last salary from Discount
       pool.query(`
         SELECT amount_ils, date FROM transactions
-        WHERE source='discount' AND charge_type='זיכוי' AND business ILIKE '%משכורת%'
+        WHERE source='discount' AND charge_type='זיכוי' AND business ILIKE '%משכורת%' AND user_id='${userId}'
         ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1
       `),
       // Last Isracard charge hit (to derive next charge date)
       pool.query(`
         SELECT date, amount_ils FROM transactions
-        WHERE source='discount' AND charge_type='חיוב' AND business ILIKE '%ישראכרט%'
+        WHERE source='discount' AND charge_type='חיוב' AND business ILIKE '%ישראכרט%' AND user_id='${userId}'
         ORDER BY to_date(date,'DD/MM/YYYY') DESC LIMIT 1
       `),
       // Monthly fixed costs from Discount (mortgage, rent, loans)
       pool.query(`
         SELECT COALESCE(SUM(amount_ils),0) as total FROM transactions
-        WHERE source='discount' AND charge_type='חיוב'
+        WHERE source='discount' AND charge_type='חיוב' AND user_id='${userId}'
           AND date LIKE $1
           AND (business ILIKE '%טפחות%' OR business ILIKE '%משכנת%'
                OR business ILIKE '%שכירות%' OR business ILIKE '%פירעון הלוואה%'
