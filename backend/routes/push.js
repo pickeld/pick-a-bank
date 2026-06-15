@@ -73,3 +73,41 @@ router.post('/unsubscribe', async (req, res) => {
 });
 
 module.exports = router;
+
+// GET /api/push/pending — returns pending digest if due (for frontend polling)
+router.get('/pending', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user.sub;
+    const { rows } = await pool.query(
+      'SELECT notify_daily_digest, digest_interval_hours, last_digest FROM settings WHERE user_id=$1 LIMIT 1',
+      [userId]
+    );
+    if (!rows.length || !rows[0].notify_daily_digest) return res.json({ pending: false });
+
+    const s = rows[0];
+    const now = new Date();
+    const lastDigest = s.last_digest ? new Date(s.last_digest) : null;
+    const intervalMs = (s.digest_interval_hours || 24) * 3600000;
+    if (lastDigest && (now - lastDigest) < intervalMs) return res.json({ pending: false });
+
+    // Build digest
+    const { rows: stats } = await pool.query(
+      `SELECT COALESCE(SUM(amount_ils),0) as total, COUNT(*) as count
+       FROM transactions
+       WHERE user_id=$1 AND source='isracard' AND charge_type='זיכוי'
+         AND to_date(date,'DD/MM/YYYY') >= NOW() - INTERVAL '24 hours'`,
+      [userId]
+    );
+    const total = parseFloat(stats[0]?.total || 0);
+    const count = parseInt(stats[0]?.count || 0);
+    const body = count > 0
+      ? `${count} פעולות ב-24 שעות האחרונות · סה"כ ₪${total.toLocaleString('he-IL', {maximumFractionDigits:0})}`
+      : 'אין פעולות חדשות ב-24 שעות האחרונות';
+
+    // Mark as sent
+    await pool.query('UPDATE settings SET last_digest=NOW() WHERE user_id=$1', [userId]);
+
+    res.json({ pending: true, title: 'Pick a Bank 🏦', body });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});

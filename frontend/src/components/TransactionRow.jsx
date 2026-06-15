@@ -43,9 +43,10 @@ function CardLabel({ source, card }) {
 function ForeignBadge({ amount, currency }) {
   if (!amount || !currency) return null
   const formatted = Number(amount).toLocaleString('he-IL', { maximumFractionDigits: 2 })
+  const sym = { '€':'€', '$':'$', '£':'£', 'zł':'zł' }[currency] || currency
   return (
-    <span className="text-[11px] text-gray-500 tabular-nums whitespace-nowrap">
-      ({formatted} {currency})
+    <span className="inline-flex items-center gap-0.5 text-[11px] bg-gray-700/60 text-gray-300 tabular-nums whitespace-nowrap px-1.5 py-0.5 rounded-full border border-gray-600/40">
+      {sym}{formatted}
     </span>
   )
 }

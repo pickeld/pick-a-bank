@@ -1,5 +1,25 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AuthGate from './components/AuthGate'
+import { useEffect } from 'react'
+import api from './api/client'
+
+function PushPoller() {
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const { data } = await api.get('/push/pending')
+        if (data.pending && 'serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready
+          reg.showNotification(data.title || 'Pick a Bank', { body: data.body, icon: '/favicon.ico', tag: 'digest' })
+        }
+      } catch (_) {}
+    }
+    poll()
+    const id = setInterval(poll, 5 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+  return null
+}
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
@@ -12,6 +32,7 @@ import WhatIf from './pages/WhatIf'
 export default function App() {
   return (
     <AuthGate>
+      <PushPoller />
       <BrowserRouter>
         <div className="flex min-h-screen bg-gray-950 flex-col md:flex-row">
           <Sidebar />
