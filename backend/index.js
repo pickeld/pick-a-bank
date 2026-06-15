@@ -78,4 +78,45 @@ app.use('/api/push',         pushRouter);
       console.error('[cron] error:', e.message);
     }
   });
+
+  // Digest cron — every minute, check if any user is due for a digest notification
+  cron.schedule('* * * * *', async () => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT s.*, p.id as push_id, p.device_name, p.endpoint
+         FROM settings s
+         JOIN push_subscriptions p ON p.user_id = s.user_id
+         WHERE s.notify_daily_digest = true
+           AND s.digest_interval_hours IS NOT NULL
+           AND s.digest_interval_hours > 0`
+      );
+      const now = new Date();
+      for (const s of rows) {
+        const lastDigest = s.last_digest ? new Date(s.last_digest) : null;
+        const intervalMs = (s.digest_interval_hours || 24) * 3600000;
+        if (lastDigest && (now - lastDigest) < intervalMs) continue;
+
+        // Build digest message
+        const { rows: stats } = await pool.query(
+          `SELECT COALESCE(SUM(amount_ils),0) as total, COUNT(*) as count
+           FROM transactions
+           WHERE user_id=$1 AND source='isracard' AND charge_type='זיכוי'
+             AND to_date(date,'DD/MM/YYYY') >= NOW() - INTERVAL '24 hours'`,
+          [s.user_id]
+        );
+        const total = parseFloat(stats[0]?.total || 0);
+        const count = parseInt(stats[0]?.count || 0);
+        const body = count > 0
+          ? `${count} פעולות ב-24 שעות האחרונות · סה"כ ₪${total.toLocaleString('he-IL', {maximumFractionDigits:0})}`
+          : 'אין פעולות חדשות ב-24 שעות האחרונות';
+
+        // Mark digest sent
+        await pool.query(
+          `UPDATE settings SET last_digest = NOW() WHERE user_id=$1`,
+          [s.user_id]
+        );
+        console.log(`[digest] sent to user ${s.user_id}: ${body}`);
+      }
+    } catch (e) { console.error('[digest] error:', e.message); }
+  });
 })();

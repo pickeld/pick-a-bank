@@ -34,7 +34,7 @@ router.post('/', async (req, res) => {
     const {
       isracard_id, isracard_card6, isracard_password,
       discount_id, discount_password, discount_num,
-      scrape_interval_hours, scrape_time, scrape_timezone, openai_key,
+      scrape_interval_hours, scrape_time, scrape_timezone, digest_interval_hours, openai_key,
       notify_new_transactions, notify_daily_digest,
     } = req.body;
 
@@ -50,6 +50,7 @@ router.post('/', async (req, res) => {
         scrape_interval_hours: scrape_interval_hours || 6,
         scrape_time: scrape_time || '08:00',
         scrape_timezone: scrape_timezone || 'Asia/Jerusalem',
+        digest_interval_hours: digest_interval_hours || 24,
         openai_key: openai_key || null,
         notify_new_transactions: !!notify_new_transactions,
         notify_daily_digest: !!notify_daily_digest,

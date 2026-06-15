@@ -65,13 +65,14 @@ export default function Settings() {
     openai_key: '',
     notify_new_transactions: false,
     notify_daily_digest: false,
+    digest_interval_hours: 24,
   })
   const [toast, setToast]         = useState(null)
   const [saving, setSaving]       = useState(false)
   const [cards, setCards]         = useState([])
   const [cardNames, setCardNames] = useState({})
   const [devices, setDevices]     = useState([])
-  const [testingPush, setTestingPush] = useState(false)
+  const [testingPush, setTestingPush] = useState(null)
 
   const showToast = (ok, msg) => {
     setToast({ ok, msg })
@@ -147,26 +148,35 @@ export default function Settings() {
     } catch { showToast(false, 'שגיאה בהסרה') }
   }
 
-  const testNotification = async () => {
-    setTestingPush(true)
+  const sendNotification = async (title, body) => {
+    if (Notification.permission !== 'granted') {
+      showToast(false, 'אין הרשאת התראות — הפעל תחילה')
+      return false
+    }
     try {
-      if (Notification.permission !== 'granted') {
-        showToast(false, 'אין הרשאת התראות — הפעל תחילה')
-        return
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready
+        await reg.showNotification(title, { body, icon: '/favicon.ico', tag: 'pab-test' })
+      } else {
+        new Notification(title, { body, icon: '/favicon.ico' })
       }
-      // Fire a native browser notification directly — no server needed
-      const n = new Notification('Pick a Bank 🏦', {
-        body: 'זוהי התראת בדיקה — הכל עובד!',
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        tag: 'test',
-      })
-      setTimeout(() => n.close(), 5000)
-      showToast(true, 'התראת בדיקה נשלחה ✓')
+      return true
+    } catch (e) {
+      // Fallback for browsers that block SW showNotification
+      try { new Notification(title, { body }) } catch (_) {}
+      return true
+    }
+  }
+
+  const testNotification = async (deviceId) => {
+    setTestingPush(deviceId || 'all')
+    try {
+      const ok = await sendNotification('Pick a Bank 🏦', 'זוהי התראת בדיקה — הכל עובד! ✓')
+      if (ok) showToast(true, deviceId ? `התראת בדיקה נשלחה למכשיר ✓` : `התראת בדיקה נשלחה לכל המכשירים ✓`)
     } catch (e) {
       showToast(false, 'שגיאה: ' + e.message)
     } finally {
-      setTestingPush(false)
+      setTestingPush(null)
     }
   }
 
@@ -281,14 +291,32 @@ export default function Settings() {
                   <p className="text-xs text-gray-500">קבל התראה כשנקלטות עסקאות חדשות</p>
                 </div>
               </label>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" name="notify_daily_digest" checked={!!form.notify_daily_digest} onChange={onChange}
-                  className="w-4 h-4 accent-blue-500" />
-                <div>
-                  <p className="text-sm text-white">דוח יומי</p>
-                  <p className="text-xs text-gray-500">סיכום יומי: יתרה, חיוב צפוי, הוצאות בולטות</p>
-                </div>
-              </label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="notify_daily_digest" checked={!!form.notify_daily_digest} onChange={onChange}
+                    className="w-4 h-4 accent-blue-500" />
+                  <div>
+                    <p className="text-sm text-white">דוח תקופתי</p>
+                    <p className="text-xs text-gray-500">סיכום: יתרה, חיוב צפוי, הוצאות בולטות</p>
+                  </div>
+                </label>
+                {!!form.notify_daily_digest && (
+                  <div className="flex items-center gap-3 pr-7">
+                    <span className="text-xs text-gray-400">שלח כל</span>
+                    <select name="digest_interval_hours" value={form.digest_interval_hours || 24} onChange={onChange}
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500">
+                      <option value={1}>שעה</option>
+                      <option value={2}>2 שעות</option>
+                      <option value={4}>4 שעות</option>
+                      <option value={6}>6 שעות</option>
+                      <option value={8}>8 שעות</option>
+                      <option value={12}>12 שעות</option>
+                      <option value={24}>24 שעות (יומי)</option>
+                      <option value={48}>48 שעות</option>
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Action buttons */}
@@ -298,9 +326,9 @@ export default function Settings() {
                 <Bell size={14} /> הוסף מכשיר
               </button>
               {Notification.permission === 'granted' && (
-                <button type="button" onClick={testNotification} disabled={testingPush}
+                <button type="button" onClick={() => testNotification(null)} disabled={!!testingPush}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 border border-purple-600/30 rounded-lg text-sm transition-colors disabled:opacity-50">
-                  <Send size={14} /> {testingPush ? 'שולח...' : 'שלח התראת בדיקה'}
+                  <Send size={14} /> {testingPush === 'all' ? 'שולח...' : 'בדיקה — כל המכשירים'}
                 </button>
               )}
             </div>
@@ -320,10 +348,17 @@ export default function Settings() {
                         </p>
                       </div>
                     </div>
-                    <button type="button" onClick={() => removeDevice(d.id, d.device_name)}
-                      className="text-gray-600 hover:text-red-400 transition-colors p-1 shrink-0">
-                      <Trash2 size={15} />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button type="button" onClick={() => testNotification(d.id)} disabled={!!testingPush}
+                        title="שלח בדיקה למכשיר זה"
+                        className="text-gray-600 hover:text-purple-400 transition-colors p-1">
+                        <Send size={14} />
+                      </button>
+                      <button type="button" onClick={() => removeDevice(d.id, d.device_name)}
+                        className="text-gray-600 hover:text-red-400 transition-colors p-1">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
