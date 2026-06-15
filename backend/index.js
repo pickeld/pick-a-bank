@@ -13,6 +13,9 @@ const importRouter       = require('./routes/import');
 const cardsRouter        = require('./routes/cards');
 const budgetsRouter      = require('./routes/budgets');
 const pushRouter         = require('./routes/push');
+const loansRouter        = require('./routes/loans');
+const savingsRouter      = require('./routes/savings');
+const recurringRouter    = require('./routes/recurring');
 const { authMiddleware } = require('./middleware/auth');
 const { runScrape }      = require('./scraper/runner');
 const { initDb }         = require('./db/init');
@@ -38,6 +41,9 @@ app.use('/api/import',       importRouter);
 app.use('/api/cards',        cardsRouter);
 app.use('/api/budgets',      budgetsRouter);
 app.use('/api/push',         pushRouter);
+app.use('/api/loans',        loansRouter);
+app.use('/api/savings',      savingsRouter);
+app.use('/api/recurring',    recurringRouter);
 
 (async () => {
   await initDb(pool);

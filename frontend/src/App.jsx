@@ -28,6 +28,9 @@ import Analytics from './pages/Analytics'
 import Import from './pages/Import'
 import Budget from './pages/Budget'
 import WhatIf from './pages/WhatIf'
+import Loans from './pages/Loans'
+import Savings from './pages/Savings'
+import RecurringPayments from './pages/RecurringPayments'
 
 export default function App() {
   return (
@@ -44,6 +47,9 @@ export default function App() {
               <Route path="/budget"      element={<Budget />} />
               <Route path="/whatif"      element={<WhatIf />} />
               <Route path="/import"      element={<Import />} />
+              <Route path="/loans"       element={<Loans />} />
+              <Route path="/savings"     element={<Savings />} />
+              <Route path="/recurring"   element={<RecurringPayments />} />
               <Route path="/settings"    element={<Settings />} />
               <Route path="*"            element={<Navigate to="/" replace />} />
             </Routes>
