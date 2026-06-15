@@ -1,5 +1,6 @@
 const { scrapeIsracard } = require('./isracard');
 const { scrapeDiscount } = require('./discount');
+const { scrapeGeneric } = require('./generic');
 const { categorize } = require('../lib/categorize');
 
 async function upsertTransactions(pool, source, txns, userId) {
@@ -91,7 +92,25 @@ async function runScrape(pool, settings, userId) {
   }
 
   if (userId) {
-    await pool.query('UPDATE settings SET last_scrape = NOW() WHERE user_id=$1', [userId]);
+    // Scrape additional bank_accounts
+  const bankAccounts = settings.bank_accounts || [];
+  for (const acct of bankAccounts) {
+    if (!acct.enabled || !acct.company || !acct.credentials) continue;
+    // Skip companies handled by custom scrapers
+    if (acct.company === 'isracard' || acct.company === 'discount') continue;
+    try {
+      console.log(`[scraper] scraping ${acct.company}...`);
+      const txns = await scrapeGeneric({ company: acct.company, credentials: acct.credentials });
+      const count = await upsertTransactions(pool, acct.company, txns, userId);
+      results[acct.company] = count;
+      console.log(`[scraper] ${acct.company}: ${count} new transactions`);
+    } catch (e) {
+      console.error(`[scraper] ${acct.company} error:`, e.message);
+      results.errors.push(`${acct.company}: ${e.message}`);
+    }
+  }
+
+  await pool.query('UPDATE settings SET last_scrape = NOW() WHERE user_id=$1', [userId]);
   } else {
     await pool.query('UPDATE settings SET last_scrape = NOW() WHERE id = (SELECT id FROM settings LIMIT 1)');
   }
