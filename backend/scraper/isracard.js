@@ -142,6 +142,8 @@ async function exportMonth(page, { cardSuffix, companyCode, cardStatus, isPartne
 
   // Parse the xlsx
   const buf = Buffer.from(result.b64, 'base64');
+  // DEBUG: save raw xlsx to disk
+  try { fs.writeFileSync(`/tmp/isracard-${billingMonth.replace(///g,'-')}-${isNextBillingDate?'next':'prev'}.xlsx`, buf); } catch(_) {}
   const wb = XLSX.read(buf, { type: 'buffer' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
